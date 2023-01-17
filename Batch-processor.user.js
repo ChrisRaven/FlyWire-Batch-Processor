@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Utilities
+// @name         Batch Processor
 // @namespace    KrzysztofKruk-FlyWire
 // @version      0.1
 // @description  Batch processing segments in FlyWire
