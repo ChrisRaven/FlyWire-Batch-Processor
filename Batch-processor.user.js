@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Batch Processor
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.1
+// @version      0.1.0.1
 // @description  Batch processing segments in FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
+// @match        https://proofreading.flywire.ai/*
 // @updateURL    https://raw.githubusercontent.com/ChrisRaven/FlyWire-Batch-Processor/main/Batch-processor.user.js
 // @downloadURL  https://raw.githubusercontent.com/ChrisRaven/FlyWire-Batch-Processor/main/Batch-processor.user.js
 // @homepageURL  https://github.com/ChrisRaven/FlyWire-Batch-Processor
