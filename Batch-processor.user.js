@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         Batch Processor
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.1.0.1
+// @version      0.2
 // @description  Batch processing segments in FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
 // @match        https://proofreading.flywire.ai/*
+// @grant        GM_xmlhttpRequest
+// @connect      prod.flywire-daf.com
 // @updateURL    https://raw.githubusercontent.com/ChrisRaven/FlyWire-Batch-Processor/main/Batch-processor.user.js
 // @downloadURL  https://raw.githubusercontent.com/ChrisRaven/FlyWire-Batch-Processor/main/Batch-processor.user.js
 // @homepageURL  https://github.com/ChrisRaven/FlyWire-Batch-Processor
@@ -25,7 +27,10 @@ let wait = setInterval(() => {
   }
 }, 100)
 
+const MAX_NUMBER_OF_SOURCES = 10
+const MAX_NUMBER_OF_RESULTS = 20
 
+const FIND_COMMON_COLORS = ['#f8e266', '#9de0f9', '#eed1e4', '#a1ec46', '#fc3cb2', '#9b95cf', '#4c7dbc', '#ca5af6', '#f0ae42', '#2df6af']
 
 function main() {
   addPickr()
@@ -155,6 +160,9 @@ function addActionsMenu() {
     ['optgroup', 'Change color for'],
     ['visible', 'change-color-visible'],
 
+    ['optgroup', 'Find common partners for'],
+    ['visible', 'find-common-partners-visible'],
+
     ['optgroup', 'Show only'],
     ['identified', 'show-identified-only'],
     ['completed', 'show-completed-only'],
@@ -188,7 +196,7 @@ function addActionsMenu() {
     ['completed', 'copy-completed'],
     ['incompleted', 'copy-incompleted'],
     ['outdated', 'copy-outdated'],
-    ['visible', 'copy-visibled'],
+    ['visible', 'copy-visible'],
     ['hidden', 'copy-hidden']
   ]
 
@@ -378,9 +386,477 @@ function actionsHandler(e) {
   }
 
 
+  function findCommon_requestData(id) {
+    return JSON.stringify({
+      output: '..post_submit_download__summary.children...post_submit_download__upstream.children...post_submit_download__downstream.children...post_submit_linkbuilder_buttons.children...summary_table.columns...summary_table.data...incoming_table.columns...incoming_table.data...outgoing_table.columns...outgoing_table.data...graph_div.children...message_text.value...message_text.rows...submit_loader.children..',
+      outputs: [
+        { id: 'post_submit_download__summary', property: 'children' },
+        { id: 'post_submit_download__upstream', property: 'children' },
+        { id: 'post_submit_download__downstream', property: 'children' },
+        { id: 'post_submit_linkbuilder_buttons', property: 'children' },
+        { id: 'summary_table', property: 'columns' },
+        { id: 'summary_table', property: 'data' },
+        { id: 'incoming_table', property: 'columns' },
+        { id: 'incoming_table', property: 'data' },
+        { id: 'outgoing_table', property: 'columns' },
+        { id: 'outgoing_table', property: 'data' },
+        { id: 'graph_div', property: 'children' },
+        { id: 'message_text', property: 'value' },
+        { id: 'message_text', property: 'rows' },
+        { id: 'submit_loader', property: 'children' }
+      ],
+      inputs: [{ id: 'submit_button', property: 'n_clicks' }],
+      changedPropIds: [],
+      state: [
+        {
+          id: { id_inner: 'input_field', type: 'url_helper' },
+          property: 'value',
+          value: id
+        },
+        {
+          id: { id_inner: 'cleft_thresh_field', type: 'url_helper' },
+          property: 'value',
+          value: '50'
+        },
+        {
+          id: { id_inner: 'timestamp_field', type: 'url_helper' },
+          property: 'value'
+        },
+        {
+          id: { id_inner: 'filter_list_field', type: 'url_helper' },
+          property: 'value'
+        }
+      ]
+    })
+  }
+
+
+  function findCommon_request(id, onloadCallback, onreadystatechangeCallback, onerrorCallback) {
+    const authToken = localStorage.getItem('auth_token')
+
+    GM_xmlhttpRequest({
+      method: 'POST',
+
+      url: 'https://prod.flywire-daf.com/dash/datastack/flywire_fafb_production/apps/fly_connectivity/_dash-update-component',
+
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        cookie: 'middle_auth_token=' + authToken
+      },
+
+      data: findCommon_requestData(id),
+
+      onload: res => {
+        if (!res) return console.error('Error retrieving data for ' + id)
+
+        res = JSON.parse(res.responseText).response
+        if (!res) return
+
+        if (onloadCallback && typeof onloadCallback === 'function') {
+          onloadCallback(res, id)
+        }
+      },
+
+      onreadystatechange: res => {
+        if (onreadystatechangeCallback && typeof onreadystatechangeCallback === 'function') {
+          onreadystatechangeCallback(res, id)
+        }
+      },
+
+      onerror: res => {
+        if (onerrorCallback && typeof onerrorCallback === 'function') {
+          onerrorCallback(res, id)
+        }
+      }
+    })
+  }
+
+
+  function findCommon(type) {
+    const results = new Map()
+    let finishedCounter = 0
+
+    let ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
+    if (!ids || !ids.length) return console.error('No segments selected')
+    const numberOfSources = ids.length
+    ids = ids.slice(0, MAX_NUMBER_OF_SOURCES)
+
+    ids.forEach(id => {
+      findCommon_request(id, onload, onreadystatechange)
+
+      function onreadystatechange(response) {
+        if (response && response.readyState === 4) {
+          finishedCounter++
+        }
+
+        if (finishedCounter === ids.length) {
+          document.getElementById('kk-find-common-results-wrapper-wrapper').style.display = 'block'
+        // without setTimeout onreadystatechange is called before last setting of results in the onload
+          setTimeout(findCommon_prepareResults.bind(null, MAX_NUMBER_OF_RESULTS, results, numberOfSources), 0)
+        }
+      }
+
+      function onload(res) {
+        results.set(id, {
+          upstream: findCommon_filterResults(res.incoming_table, 'Upstream Partner ID'),
+          downstream: findCommon_filterResults(res.outgoing_table, 'Downstream Partner ID')
+        })
+
+        const statusColumn = document.querySelector(`#kk-find-common-row-${id} .kk-find-common-row-status`)
+        statusColumn.textContent = 'Success'
+        statusColumn.style.color = '#00FF00'
+      }
+    })
+
+    Dock.dialog({
+      id: 'kk-find-common-dialog',
+      html: findCommon_getHtml(ids),
+      css: findCommon_getCss(),
+      okCallback: () => {},
+      okLabel: 'Close',
+      width: 850,
+      destroyAfterClosing: true
+    }).show()
+
+    
+    function addListener(id, type, source) {
+      document.getElementById(id).addEventListener('click', findCommon_getResults.bind(null, type, source))
+    }
+
+    addListener('kk-find-common-get-all-upstream', 'all', 'upstream')
+    addListener('kk-find-common-get-common-upstream', 'common', 'upstream')
+    addListener('kk-find-common-get-all-downstream', 'all', 'downstream')
+    addListener('kk-find-common-get-common-downstream', 'common', 'downstream')
+    addListener('kk-find-common-get-all', 'all', 'both')
+    addListener('kk-find-common-get-common', 'common', 'both')
+
+    document.getElementById('kk-find-common-copy-results').addEventListener('click', findCommon_copyResults)
+  }
+
+
+  function findCommon_filterResults(table, rowName) {
+    const ids = []
+
+    table.data.forEach(row => {
+      const text = row[rowName]
+      if (!text) return
+
+      const id = text.substring(1, text.indexOf(']'))
+      ids.push(id)
+    })
+
+    return ids
+  }
+
+
+  function findCommon_getResults(type, source) {
+    const ids = []
+
+    document.getElementsByClassName('result-id').forEach(el => el.style.color = 'white')
+    document.querySelectorAll('.result-id input[type="checkbox"]:checked').forEach(el => {
+      ids.push(el.parentElement.parentElement.dataset.id)
+    })
+
+    if (!ids || !ids.length) return
+
+    const numberOfCells = ids.length
+    let numberOfFinishedRequests = 0
+
+    ids.forEach(id => {
+      findCommon_request(id, onload, onreadystatechange, onerror)
+      document.getElementById('result-id-' + id).style.color = 'yellow'
+    })
+
+    const results = {
+      upstream: [],
+      downstream: []
+    }
+
+    function onload(res, id) {
+      results.upstream[id] = findCommon_filterResults(res.incoming_table, 'Upstream Partner ID')
+      results.downstream[id] = findCommon_filterResults(res.outgoing_table, 'Downstream Partner ID')
+    }
+
+    function onreadystatechange(res, id) {
+      if (res && res.readyState === 4) {
+        numberOfFinishedRequests++
+        document.getElementById('result-id-' + id).style.color = '#00FF00'
+        if (numberOfFinishedRequests === numberOfCells) {
+          setTimeout(findCommon_prepareFinalResults.bind(null, results, type, source), 0)
+        }
+      }
+    }
+
+    function onerror(res, id) {
+      document.getElementById('result-id-' + id).style.color = 'red'
+    }
+
+  }
+
+
+  function findCommon_copyResults() {
+    const ids = []
+
+    document.querySelectorAll('.result-id input[type="checkbox"]:checked').forEach(el => {
+      ids.push(el.parentElement.parentElement.dataset.id)
+    })
+
+    navigator.clipboard.writeText(ids).then(() => {
+      Dock.dialog({
+        id: 'kk-find-common-copy-results-direct',
+        html: 'The IDs have been copied to clipboard',
+        cancelCallback: () => {},
+        cancelLabel: 'Close'
+      }).show()
+    })
+  }
+
+
+  function findCommon_prepareFinalResults(results, type, source) {
+    let finalResults = []
+    let tableToAnalyze = []
+    let numberOfTables = 0
+
+    if (source === 'upstream' || source === 'both') {
+      Object.entries(results.upstream).forEach(el => {
+        const id = el[0]
+        const partners = el[1]
+        tableToAnalyze.push(...partners)
+        numberOfTables++
+      })
+    }
+    
+    if (source === 'downstream' || source === 'both') {
+      Object.entries(results.downstream).forEach(el => {
+        const id = el[0]
+        const partners = el[1]
+        tableToAnalyze.push(...partners)
+        // for "both" we would count the same "big" common synaptic parnter twice
+        if (source !== 'both') {
+          numberOfTables++
+        }
+      })
+    }
+
+    // to get rid of the duplicates
+    tableToAnalyze = [...new Set(tableToAnalyze)]
+
+    if (type === 'common') {
+      const counters = []
+      for (let i = 0; i < tableToAnalyze.length; i++) {
+        if (!counters[tableToAnalyze[i]]) {
+          counters[tableToAnalyze[i]] = 1
+        }
+        else {
+          counters[tableToAnalyze[i]]++
+        }
+      }
+
+      Object.entries(counters).forEach(entry => {
+        const id = entry[0]
+        const el = entry[1]
+        if (el === numberOfTables) {
+          finalResults.push(id)
+        }
+      })
+    }
+    else {
+      finalResults = tableToAnalyze
+    }
+
+    finalResults.sort()
+
+    Dock.dialog({
+      id: 'kk-find-common-ids-copied-msg',
+      html: `Found ${finalResults.length} result(s)<br />Click the "Copy" button to copy the results to clipboard`,
+      okCallback: finalResults_okCallback,
+      okLabel: 'Copy',
+      cancelCallback: () => {},
+      cancelLabel: 'Close'
+    }).show()
+
+
+    function finalResults_okCallback() {
+      navigator.clipboard.writeText(finalResults).then(() => {
+        Dock.dialog({
+          id: 'kk-copy-common-copied-confirm',
+          html: 'IDs have been copied to clipboard',
+          cancelCallback: () => {},
+          cancelLabel: 'Close'
+        }).show()
+      })
+    }
+  }
+
+  
+  function findCommon_prepareResults(MAX_NUMBER_OF_RESULTS, results, numberOfSources) {
+    let position = 0
+    const upstream = []
+    const downstream = []
+
+    results.forEach((result, id) => {
+      result.upstream.forEach(partnerId => {
+        if (!upstream[partnerId]) {
+          upstream[partnerId] = (new Array(numberOfSources)).fill(false)
+        }
+        upstream[partnerId][position] = true
+      })
+
+      result.downstream.forEach(partnerId => {
+        if (!downstream[partnerId]) {
+          downstream[partnerId] = (new Array(numberOfSources)).fill(false)
+        }
+        downstream[partnerId][position] = true
+      })
+
+      position++
+    })
+
+    let numberOfOccurencesUpstream = []
+    Object.entries(upstream).forEach(entry => {
+      // state is boolean, but is automatically casted to 1 if true and 0 if false
+      const sum = entry[1].reduce((sum, state) => sum + state, 0)
+      numberOfOccurencesUpstream.push({ id: entry[0], sum: sum })
+    })
+    numberOfOccurencesUpstream.sort((a, b) => b.sum - a.sum)
+    
+    let numberOfOccurencesDownstream = []
+    Object.entries(downstream).forEach(entry => {
+      const sum = entry[1].reduce((sum, state) => sum + state, 0)
+      numberOfOccurencesDownstream.push({ id: entry[0], sum: sum })
+    })
+    numberOfOccurencesDownstream.sort((a, b) => b.sum - a.sum)
+
+    const tableUpstream = document.getElementById('kk-find-common-upstream-summary')
+    const tableDownstream = document.getElementById('kk-find-common-downstream-summary')
+    tableUpstream.innerHTML = findCommon_generateResultsHtml(numberOfOccurencesUpstream, upstream)
+    tableDownstream.innerHTML = findCommon_generateResultsHtml(numberOfOccurencesDownstream, downstream)
+  }
+
+
+  function findCommon_generateResultsHtml(occurences, sources) {
+    let html = ''
+
+    for (let i = 0; i < MAX_NUMBER_OF_RESULTS; i++) {
+      const id = occurences[i].id
+      let sourcesHtml = ''
+      sources[id].forEach((source, index) => {
+        sourcesHtml += `<td class="result-color" style="background-color: ${source ? FIND_COMMON_COLORS[index] : 'transparent'}"></td>`
+      })
+      html += `<tr><td id="result-id-${id}" class="result-id" data-id="${id}"><label><input type="checkbox">${id}</label></td>${sourcesHtml}</tr>`
+    }
+
+    return html
+  }
+
+  
+  function findCommon_getHtml(ids) {
+    let html = '<table id="kk-find-common-sources-table">'
+
+    html += ids.map((id, index) => {
+      return /*html*/`<tr id="kk-find-common-row-${id}">
+        <td class="kk-find-common-row-id" style="color: ${FIND_COMMON_COLORS[index]};">${id}</td>
+        <td class="kk-find-common-row-status" style="color: yellow;">Fetching data...</td>
+      </tr>`
+    }).join('')
+
+    html += '</table>'
+
+    html += /*html*/`
+      <div id="kk-find-common-results-wrapper-wrapper">
+        <hr />
+        <div class="kk-find-common-results-wrapper">
+          <div>Common upstream partners</div>
+          <table id="kk-find-common-upstream-summary"></table>
+        </div>
+        <div class="kk-find-common-results-wrapper">
+          <div>Common downstream partners</div>
+          <table id="kk-find-common-downstream-summary"></table>
+        </div>
+        <hr />
+        With selected:
+        <button id="kk-find-common-get-all-upstream">Get all upstream partners</button>
+        <button id="kk-find-common-get-all-downstream">Get all downstream partners</button>
+        <button id="kk-find-common-get-all">Get all partners</button><br />
+
+        <button id="kk-find-common-copy-results">Copy</button>
+        
+        <button id="kk-find-common-get-common-upstream">Get common upstream partners</button>
+        <button id="kk-find-common-get-common-downstream">Get common downstream partners</button>
+        <button id="kk-find-common-get-common">Get common partners</button>
+      </div>
+    `
+
+    return html
+  }
+
+  function findCommon_getCss() {
+    return /*css*/`
+      #kk-find-common-sources-table {
+        margin: auto;
+        margin-bottom: 15px;
+        font-size: 15px;
+      }
+
+      #kk-find-common-upstream-summary,
+      #kk-find-common-downstream-summary {
+        border-collapse: collapse;
+        margin-top: 10px;
+      }
+
+      #kk-find-common-upstream-summary .result-color,
+      #kk-find-common-downstream-summary .result-color {
+        width: 17px;
+      }
+
+      #kk-find-common-upstream-summary .result-id,
+      #kk-find-common-downstream-summary .result-id {
+        padding-right: 10px;
+      }
+
+      .kk-find-common-row-id {
+        padding: 0 20px;
+      }
+
+      #kk-find-common-results-wrapper-wrapper {
+        display: none;
+      }
+
+      .kk-find-common-results-wrapper {
+        display: inline-block;
+        font-size: 14px;
+        font-weight: 300;
+        width: 45%;
+      }
+
+      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-all-upstream,
+      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-common-upstream,
+      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-all-downstream,
+      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-common-downstream,
+      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-all,
+      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-common {
+        width: 220px;
+      }
+
+      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-all-upstream {
+        margin-left: 10px;
+      }
+
+      #kk-find-common-results-wrapper-wrapper #kk-find-common-copy-results {
+        margin: 10px 40.5px 15px 0;
+      }
+    `
+  }
+
+
   switch (e.target.value) {
     case 'change-color-visible':
       changeColor(visible)
+      break
+
+    case 'find-common-partners-visible':
+      findCommon(visible)
       break
 
     case 'show-identified-only':
