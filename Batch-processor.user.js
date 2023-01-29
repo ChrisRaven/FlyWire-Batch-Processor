@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Batch Processor
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.2
+// @version      0.2.1
 // @description  Batch processing segments in FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -431,7 +431,7 @@ function actionsHandler(e) {
   }
 
 
-  function findCommon_request(id, onloadCallback, onreadystatechangeCallback, onerrorCallback) {
+  function findCommon_request(id, onloadCallback, onreadystatechangeCallback, onerrorCallback, direction) {
     const authToken = localStorage.getItem('auth_token')
 
     GM_xmlhttpRequest({
@@ -450,23 +450,20 @@ function actionsHandler(e) {
       onload: res => {
         if (!res) return console.error('Error retrieving data for ' + id)
 
-        res = JSON.parse(res.responseText).response
-        if (!res) return
-
         if (onloadCallback && typeof onloadCallback === 'function') {
-          onloadCallback(res, id)
+          onloadCallback(res, id, direction)
         }
       },
 
       onreadystatechange: res => {
         if (onreadystatechangeCallback && typeof onreadystatechangeCallback === 'function') {
-          onreadystatechangeCallback(res, id)
+          onreadystatechangeCallback(res, id, direction)
         }
       },
 
       onerror: res => {
         if (onerrorCallback && typeof onerrorCallback === 'function') {
-          onerrorCallback(res, id)
+          onerrorCallback(res, id, direction)
         }
       }
     })
@@ -498,12 +495,22 @@ function actionsHandler(e) {
       }
 
       function onload(res) {
+        const statusColumn = document.querySelector(`#kk-find-common-row-${id} .kk-find-common-row-status`)
+
+        try {
+          res = JSON.parse(res.responseText).response
+        }
+        catch {
+          statusColumn.textContent = 'Error'
+          statusColumn.style.color = '#FF0000'
+        }
+        if (!res) return
+
         results.set(id, {
           upstream: findCommon_filterResults(res.incoming_table, 'Upstream Partner ID'),
           downstream: findCommon_filterResults(res.outgoing_table, 'Downstream Partner ID')
         })
 
-        const statusColumn = document.querySelector(`#kk-find-common-row-${id} .kk-find-common-row-status`)
         statusColumn.textContent = 'Success'
         statusColumn.style.color = '#00FF00'
       }
@@ -551,11 +558,18 @@ function actionsHandler(e) {
 
 
   function findCommon_getResults(type, source) {
-    const ids = []
-
     document.getElementsByClassName('result-id').forEach(el => el.style.color = 'white')
+
+    const ids = []
     document.querySelectorAll('.result-id input[type="checkbox"]:checked').forEach(el => {
-      ids.push(el.parentElement.parentElement.dataset.id)
+      const grandParent = el.parentElement.parentElement
+      const id = grandParent.dataset.id
+      const direction = grandParent.classList.contains('up') ? 'up' : 'down'
+      if (id) {
+        ids.push(id)
+        findCommon_request(id, onload, onreadystatechange, onerror, direction)
+        document.getElementById(`result-id-${id}-${direction}`).style.color = 'yellow'
+      }
     })
 
     if (!ids || !ids.length) return
@@ -563,33 +577,41 @@ function actionsHandler(e) {
     const numberOfCells = ids.length
     let numberOfFinishedRequests = 0
 
-    ids.forEach(id => {
-      findCommon_request(id, onload, onreadystatechange, onerror)
-      document.getElementById('result-id-' + id).style.color = 'yellow'
-    })
-
     const results = {
       upstream: [],
       downstream: []
     }
 
-    function onload(res, id) {
+    function onload(res, id, direction) {
+      try {
+        res = JSON.parse(res.responseText).response
+      }
+      catch {
+        document.getElementById(`result-id-${id}-${direction}`).style.color = '#FF0000'
+      }
+      if (!res) return
+
       results.upstream[id] = findCommon_filterResults(res.incoming_table, 'Upstream Partner ID')
       results.downstream[id] = findCommon_filterResults(res.outgoing_table, 'Downstream Partner ID')
     }
 
-    function onreadystatechange(res, id) {
-      if (res && res.readyState === 4) {
-        numberOfFinishedRequests++
-        document.getElementById('result-id-' + id).style.color = '#00FF00'
-        if (numberOfFinishedRequests === numberOfCells) {
-          setTimeout(findCommon_prepareFinalResults.bind(null, results, type, source), 0)
+    function onreadystatechange(res, id, direction) {
+      if (res) {
+        if (res.readyState === 4) {
+          numberOfFinishedRequests++
+          document.getElementById(`result-id-${id}-${direction}`).style.color = '#00FF00'
+          if (numberOfFinishedRequests === numberOfCells) {
+            setTimeout(findCommon_prepareFinalResults.bind(null, results, type, source), 0)
+          }
+        }
+        else if (res.readyState === 3) {
+          document.getElementById(`result-id-${id}-${direction}`).style.color = '#FFA500'
         }
       }
     }
 
-    function onerror(res, id) {
-      document.getElementById('result-id-' + id).style.color = 'red'
+    function onerror(res, id, direction) {
+      document.getElementById(`result-id-${id}-${direction}`).style.color = '$FF0000'
     }
 
   }
@@ -730,12 +752,12 @@ function actionsHandler(e) {
 
     const tableUpstream = document.getElementById('kk-find-common-upstream-summary')
     const tableDownstream = document.getElementById('kk-find-common-downstream-summary')
-    tableUpstream.innerHTML = findCommon_generateResultsHtml(numberOfOccurencesUpstream, upstream)
-    tableDownstream.innerHTML = findCommon_generateResultsHtml(numberOfOccurencesDownstream, downstream)
+    tableUpstream.innerHTML = findCommon_generateResultsHtml(numberOfOccurencesUpstream, upstream, 'up')
+    tableDownstream.innerHTML = findCommon_generateResultsHtml(numberOfOccurencesDownstream, downstream, 'down')
   }
 
 
-  function findCommon_generateResultsHtml(occurences, sources) {
+  function findCommon_generateResultsHtml(occurences, sources, streamDirection) {
     let html = ''
 
     for (let i = 0; i < MAX_NUMBER_OF_RESULTS; i++) {
@@ -744,7 +766,8 @@ function actionsHandler(e) {
       sources[id].forEach((source, index) => {
         sourcesHtml += `<td class="result-color" style="background-color: ${source ? FIND_COMMON_COLORS[index] : 'transparent'}"></td>`
       })
-      html += `<tr><td id="result-id-${id}" class="result-id" data-id="${id}"><label><input type="checkbox">${id}</label></td>${sourcesHtml}</tr>`
+      // streamDirection in ID to differentiate ups and downs, and in class to quickly read the direction
+      html += `<tr><td id="result-id-${id}-${streamDirection}" class="result-id ${streamDirection}" data-id="${id}"><label><input type="checkbox">${id}</label></td>${sourcesHtml}</tr>`
     }
 
     return html
