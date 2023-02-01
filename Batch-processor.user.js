@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Batch Processor
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.2.1
+// @version      0.2.2
 // @description  Batch processing segments in FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -476,7 +476,7 @@ function actionsHandler(e) {
 
     let ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
     if (!ids || !ids.length) return console.error('No segments selected')
-    const numberOfSources = ids.length
+    const numberOfSources = Math.min(ids.length, MAX_NUMBER_OF_SOURCES)
     ids = ids.slice(0, MAX_NUMBER_OF_SOURCES)
 
     ids.forEach(id => {
