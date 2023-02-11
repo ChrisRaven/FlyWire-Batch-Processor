@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Batch Processor
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.2.2.1
+// @version      0.2.3
 // @description  Batch processing segments in FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -661,9 +661,6 @@ function actionsHandler(e) {
       })
     }
 
-    // to get rid of the duplicates
-    tableToAnalyze = [...new Set(tableToAnalyze)]
-
     if (type === 'common') {
       const counters = []
       for (let i = 0; i < tableToAnalyze.length; i++) {
@@ -684,6 +681,8 @@ function actionsHandler(e) {
       })
     }
     else {
+      // to get rid of the duplicates
+      tableToAnalyze = [...new Set(tableToAnalyze)]
       finalResults = tableToAnalyze
     }
 
