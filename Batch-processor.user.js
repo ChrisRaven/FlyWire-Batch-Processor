@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Batch Processor
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.2.3
+// @version      0.3
 // @description  Batch processing segments in FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -20,6 +20,9 @@ if (!document.getElementById('dock-script')) {
   document.head.appendChild(script)
 }
 
+// to quickly display both up- and downstream partners for the first 30 HIDDEN cells
+const QUICK_FIND = false
+
 let wait = setInterval(() => {
   if (unsafeWindow.dockIsReady) {
     clearInterval(wait)
@@ -27,7 +30,7 @@ let wait = setInterval(() => {
   }
 }, 100)
 
-const MAX_NUMBER_OF_SOURCES = 10
+const MAX_NUMBER_OF_SOURCES = QUICK_FIND ? 30 : 10
 const MAX_NUMBER_OF_RESULTS = 20
 
 const FIND_COMMON_COLORS = ['#f8e266', '#9de0f9', '#eed1e4', '#a1ec46', '#fc3cb2', '#9b95cf', '#4c7dbc', '#ca5af6', '#f0ae42', '#2df6af']
@@ -511,6 +514,9 @@ function actionsHandler(e) {
           downstream: findCommon_filterResults(res.outgoing_table, 'Downstream Partner ID')
         })
 
+        addNeuropilsBars(id, res.graph_div.children[2].props.children.props.figure.data[0])
+        addNeuropilsBars(id, res.graph_div.children[3].props.children.props.figure.data[0])
+
         statusColumn.textContent = 'Success'
         statusColumn.style.color = '#00FF00'
       }
@@ -522,7 +528,7 @@ function actionsHandler(e) {
       css: findCommon_getCss(),
       okCallback: () => {},
       okLabel: 'Close',
-      width: 850,
+      width: 810,
       destroyAfterClosing: true
     }).show()
 
@@ -600,6 +606,7 @@ function actionsHandler(e) {
         if (res.readyState === 4) {
           numberOfFinishedRequests++
           document.getElementById(`result-id-${id}-${direction}`).style.color = '#00FF00'
+
           if (numberOfFinishedRequests === numberOfCells) {
             setTimeout(findCommon_prepareFinalResults.bind(null, results, type, source), 0)
           }
@@ -614,6 +621,23 @@ function actionsHandler(e) {
       document.getElementById(`result-id-${id}-${direction}`).style.color = '$FF0000'
     }
 
+  }
+
+  function addNeuropilsBars(id, result) {
+    const row = document.getElementById(`kk-find-common-row-${id}`).getElementsByClassName('kk-find-common-graph-wrapper')[0]
+    row.classList.add('kk-find-common-graph-wrapper-background')
+
+    let labels = result.labels
+    let values = result.values
+    let colors = result.marker.colors
+    for (let i = 0; i < labels.length; i++) {
+      const bar = document.createElement('div')
+      bar.classList.add('kk-find-common-graph-graph')
+      bar.style.width = 400 * values[i] + 'px';
+      bar.style.backgroundColor = '#' + colors[i]
+      bar.title = labels[i]
+      row.appendChild(bar)
+    }
   }
 
 
@@ -734,6 +758,12 @@ function actionsHandler(e) {
       position++
     })
 
+    if (QUICK_FIND) {
+      const ids = []
+      results.forEach(el => ids.push(...el.upstream, ...el.downstream))
+      console.log(ids.join('\r\n'))
+    }
+
     let numberOfOccurencesUpstream = []
     Object.entries(upstream).forEach(entry => {
       // state is boolean, but is automatically casted to 1 if true and 0 if false
@@ -780,6 +810,7 @@ function actionsHandler(e) {
       return /*html*/`<tr id="kk-find-common-row-${id}">
         <td class="kk-find-common-row-id" style="color: ${FIND_COMMON_COLORS[index]};">${id}</td>
         <td class="kk-find-common-row-status" style="color: yellow;">Fetching data...</td>
+        <td class="kk-find-common-graphs"><div class="kk-find-common-graph-wrapper"></div></td>
       </tr>`
     }).join('')
 
@@ -843,6 +874,7 @@ function actionsHandler(e) {
 
       #kk-find-common-results-wrapper-wrapper {
         display: none;
+        text-align: center;
       }
 
       .kk-find-common-results-wrapper {
@@ -868,6 +900,23 @@ function actionsHandler(e) {
       #kk-find-common-results-wrapper-wrapper #kk-find-common-copy-results {
         margin: 10px 40.5px 15px 0;
       }
+
+      .kk-find-common-graphs .kk-find-common-graph-wrapper {
+        margin-left: 10px;
+        width: 400px;
+        height: 18px;
+        line-height: 0;
+        border: 1px solid gray;
+      }
+
+      .kk-find-common-graphs .kk-find-common-graph-wrapper-background {
+        background-color: white;
+      }
+
+      .kk-find-common-graphs .kk-find-common-graph-graph {
+        display: inline-block;
+        height: 9px;
+      }
     `
   }
 
@@ -878,7 +927,7 @@ function actionsHandler(e) {
       break
 
     case 'find-common-partners-visible':
-      findCommon(visible)
+      findCommon(QUICK_FIND ? hidden : visible)
       break
 
     case 'show-identified-only':
