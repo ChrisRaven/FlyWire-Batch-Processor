@@ -1320,7 +1320,7 @@ showNeuropilsCoverage.getCss = () => {
     }
 
     #neuropils-second-row-of-buttons {
-      margin: 10px 0 0 94px;
+      margin: 10px 0 0 95px;
     }
 
     .neurotransmitter-circle {
