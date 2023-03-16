@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Batch Processor
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.3
+// @version      0.4
 // @description  Batch processing segments in FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -13,15 +13,13 @@
 // @homepageURL  https://github.com/ChrisRaven/FlyWire-Batch-Processor
 // ==/UserScript==
 
+
 if (!document.getElementById('dock-script')) {
   let script = document.createElement('script')
   script.id = 'dock-script'
   script.src = typeof DEV !== 'undefined' ? 'http://127.0.0.1:5501/FlyWire-Dock/Dock.js' : 'https://chrisraven.github.io/FlyWire-Dock/Dock.js'
   document.head.appendChild(script)
 }
-
-// to quickly display both up- and downstream partners for the first 30 HIDDEN cells
-const QUICK_FIND = false
 
 let wait = setInterval(() => {
   if (unsafeWindow.dockIsReady) {
@@ -30,119 +28,115 @@ let wait = setInterval(() => {
   }
 }, 100)
 
+const QUICK_FIND = false // to quickly display both up- and downstream partners for the first 30 HIDDEN cells
 const MAX_NUMBER_OF_SOURCES = QUICK_FIND ? 30 : 10
 const MAX_NUMBER_OF_RESULTS = 20
-
 const FIND_COMMON_COLORS = ['#f8e266', '#9de0f9', '#eed1e4', '#a1ec46', '#fc3cb2', '#9b95cf', '#4c7dbc', '#ca5af6', '#f0ae42', '#2df6af']
 
-function main() {
-  addPickr()
-  addActionsMenu()
-}
 
 
-function openSegmentsInNewTabHandler(e) {
-  let button = e.target        // e.target === <button>
-  if (!button.classList.contains('segment-copy-button')) {
-    button = button.parentNode // e.target === <svg>
-  }
-  if (!button.classList.contains('segment-copy-button')) {
-    button = button.parentNode // e.target === <path>
-  }
-  if (!button.classList.contains('segment-copy-button')) return
+// as a function to delay it until the Dock is loaded
+function addPickr() {
 
-  const state = viewer.saver.pull()
-  let ids
-  if (e.ctrlKey) {
-    state.state.layers.forEach(layer => {
-      if (layer.type !== 'segmentation_with_graph') return
 
-      ids = layer.segments
-    })
-  }
-  else {
-    ids = Object.keys(button.previousElementSibling.dataset).length && [button.previousElementSibling.dataset.segId]
+  Dock.addCss(/*css*/`
+  .pickr{position:relative;overflow:visible;transform:translateY(0)}.pickr *{box-sizing:border-box;outline:none;border:none;-webkit-appearance:none}.pickr .pcr-button{position:relative;height:2em;width:2em;padding:0.5em;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Roboto","Helvetica Neue",Arial,sans-serif;border-radius:.15em;background:url('data:image/svg+xml;utf8, <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" stroke="%2342445A" stroke-width="5px" stroke-linecap="round"><path d="M45,45L5,5"></path><path d="M45,5L5,45"></path></svg>') no-repeat center;background-size:0;transition:all 0.3s}.pickr .pcr-button::before{position:absolute;content:'';top:0;left:0;width:100%;height:100%;background:url('data:image/svg+xml;utf8, <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path fill="white" d="M1,0H2V1H1V0ZM0,1H1V2H0V1Z"/><path fill="gray" d="M0,0H1V1H0V0ZM1,1H2V2H1V1Z"/></svg>');background-size:.5em;border-radius:.15em;z-index:-1}.pickr .pcr-button::before{z-index:initial}.pickr .pcr-button::after{position:absolute;content:'';top:0;left:0;height:100%;width:100%;transition:background 0.3s;background:var(--pcr-color);border-radius:.15em}.pickr .pcr-button.clear{background-size:70%}.pickr .pcr-button.clear::before{opacity:0}.pickr .pcr-button.clear:focus{box-shadow:0 0 0 1px rgba(255,255,255,0.85),0 0 0 3px var(--pcr-color)}.pickr .pcr-button.disabled{cursor:not-allowed}.pickr *,.pcr-app *{box-sizing:border-box;outline:none;border:none;-webkit-appearance:none}.pickr input:focus,.pickr input.pcr-active,.pickr button:focus,.pickr button.pcr-active,.pcr-app input:focus,.pcr-app input.pcr-active,.pcr-app button:focus,.pcr-app button.pcr-active{box-shadow:0 0 0 1px rgba(255,255,255,0.85),0 0 0 3px var(--pcr-color)}.pickr .pcr-palette,.pickr .pcr-slider,.pcr-app .pcr-palette,.pcr-app .pcr-slider{transition:box-shadow 0.3s}.pickr .pcr-palette:focus,.pickr .pcr-slider:focus,.pcr-app .pcr-palette:focus,.pcr-app .pcr-slider:focus{box-shadow:0 0 0 1px rgba(255,255,255,0.85),0 0 0 3px rgba(0,0,0,0.25)}.pcr-app{position:fixed;display:flex;flex-direction:column;z-index:10000;border-radius:0.1em;background:#fff;opacity:0;visibility:hidden;transition:opacity 0.3s, visibility 0s 0.3s;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Roboto","Helvetica Neue",Arial,sans-serif;box-shadow:0 0.15em 1.5em 0 rgba(0,0,0,0.1),0 0 1em 0 rgba(0,0,0,0.03);left:0;top:0}.pcr-app.visible{transition:opacity 0.3s;visibility:visible;opacity:1}.pcr-app .pcr-swatches{display:flex;flex-wrap:wrap;margin-top:0.75em}.pcr-app .pcr-swatches.pcr-last{margin:0}@supports (display: grid){.pcr-app .pcr-swatches{display:grid;align-items:center;grid-template-columns:repeat(auto-fit, 1.75em)}}.pcr-app .pcr-swatches>button{font-size:1em;position:relative;width:calc(1.75em - 5px);height:calc(1.75em - 5px);border-radius:0.15em;cursor:pointer;margin:2.5px;flex-shrink:0;justify-self:center;transition:all 0.15s;overflow:hidden;background:transparent;z-index:1}.pcr-app .pcr-swatches>button::before{position:absolute;content:'';top:0;left:0;width:100%;height:100%;background:url('data:image/svg+xml;utf8, <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path fill="white" d="M1,0H2V1H1V0ZM0,1H1V2H0V1Z"/><path fill="gray" d="M0,0H1V1H0V0ZM1,1H2V2H1V1Z"/></svg>');background-size:6px;border-radius:.15em;z-index:-1}.pcr-app .pcr-swatches>button::after{content:'';position:absolute;top:0;left:0;width:100%;height:100%;background:var(--pcr-color);border:1px solid rgba(0,0,0,0.05);border-radius:0.15em;box-sizing:border-box}.pcr-app .pcr-swatches>button:hover{filter:brightness(1.05)}.pcr-app .pcr-swatches>button:not(.pcr-active){box-shadow:none}.pcr-app .pcr-interaction{display:flex;flex-wrap:wrap;align-items:center;margin:0 -0.2em 0 -0.2em}.pcr-app .pcr-interaction>*{margin:0 0.2em}.pcr-app .pcr-interaction input{letter-spacing:0.07em;font-size:0.75em;text-align:center;cursor:pointer;color:#75797e;background:#f1f3f4;border-radius:.15em;transition:all 0.15s;padding:0.45em 0.5em;margin-top:0.75em}.pcr-app .pcr-interaction input:hover{filter:brightness(0.975)}.pcr-app .pcr-interaction input:focus{box-shadow:0 0 0 1px rgba(255,255,255,0.85),0 0 0 3px rgba(66,133,244,0.75)}.pcr-app .pcr-interaction .pcr-result{color:#75797e;text-align:left;flex:1 1 8em;min-width:8em;transition:all 0.2s;border-radius:.15em;background:#f1f3f4;cursor:text}.pcr-app .pcr-interaction .pcr-result::-moz-selection{background:#4285f4;color:#fff}.pcr-app .pcr-interaction .pcr-result::selection{background:#4285f4;color:#fff}.pcr-app .pcr-interaction .pcr-type.active{color:#fff;background:#4285f4}.pcr-app .pcr-interaction .pcr-save,.pcr-app .pcr-interaction .pcr-cancel,.pcr-app .pcr-interaction .pcr-clear{color:#fff;width:auto}.pcr-app .pcr-interaction .pcr-save,.pcr-app .pcr-interaction .pcr-cancel,.pcr-app .pcr-interaction .pcr-clear{color:#fff}.pcr-app .pcr-interaction .pcr-save:hover,.pcr-app .pcr-interaction .pcr-cancel:hover,.pcr-app .pcr-interaction .pcr-clear:hover{filter:brightness(0.925)}.pcr-app .pcr-interaction .pcr-save{background:#4285f4}.pcr-app .pcr-interaction .pcr-clear,.pcr-app .pcr-interaction .pcr-cancel{background:#f44250}.pcr-app .pcr-interaction .pcr-clear:focus,.pcr-app .pcr-interaction .pcr-cancel:focus{box-shadow:0 0 0 1px rgba(255,255,255,0.85),0 0 0 3px rgba(244,66,80,0.75)}.pcr-app .pcr-selection .pcr-picker{position:absolute;height:18px;width:18px;border:2px solid #fff;border-radius:100%;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}.pcr-app .pcr-selection .pcr-color-palette,.pcr-app .pcr-selection .pcr-color-chooser,.pcr-app .pcr-selection .pcr-color-opacity{position:relative;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;display:flex;flex-direction:column;cursor:grab;cursor:-webkit-grab}.pcr-app .pcr-selection .pcr-color-palette:active,.pcr-app .pcr-selection .pcr-color-chooser:active,.pcr-app .pcr-selection .pcr-color-opacity:active{cursor:grabbing;cursor:-webkit-grabbing}.pcr-app[data-theme='nano']{width:14.25em;max-width:95vw}.pcr-app[data-theme='nano'] .pcr-swatches{margin-top:.6em;padding:0 .6em}.pcr-app[data-theme='nano'] .pcr-interaction{padding:0 .6em .6em .6em}.pcr-app[data-theme='nano'] .pcr-selection{display:grid;grid-gap:.6em;grid-template-columns:1fr 4fr;grid-template-rows:5fr auto auto;align-items:center;height:10.5em;width:100%;align-self:flex-start}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-preview{grid-area:2 / 1 / 4 / 1;height:100%;width:100%;display:flex;flex-direction:row;justify-content:center;margin-left:.6em}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-preview .pcr-last-color{display:none}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-preview .pcr-current-color{position:relative;background:var(--pcr-color);width:2em;height:2em;border-radius:50em;overflow:hidden}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-preview .pcr-current-color::before{position:absolute;content:'';top:0;left:0;width:100%;height:100%;background:url('data:image/svg+xml;utf8, <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path fill="white" d="M1,0H2V1H1V0ZM0,1H1V2H0V1Z"/><path fill="gray" d="M0,0H1V1H0V0ZM1,1H2V2H1V1Z"/></svg>');background-size:.5em;border-radius:.15em;z-index:-1}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-palette{grid-area:1 / 1 / 2 / 3;width:100%;height:100%;z-index:1}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-palette .pcr-palette{border-radius:.15em;width:100%;height:100%}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-palette .pcr-palette::before{position:absolute;content:'';top:0;left:0;width:100%;height:100%;background:url('data:image/svg+xml;utf8, <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path fill="white" d="M1,0H2V1H1V0ZM0,1H1V2H0V1Z"/><path fill="gray" d="M0,0H1V1H0V0ZM1,1H2V2H1V1Z"/></svg>');background-size:.5em;border-radius:.15em;z-index:-1}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-chooser{grid-area:2 / 2 / 2 / 2}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-opacity{grid-area:3 / 2 / 3 / 2}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-chooser,.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-opacity{height:0.5em;margin:0 .6em}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-chooser .pcr-picker,.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-opacity .pcr-picker{top:50%;transform:translateY(-50%)}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-chooser .pcr-slider,.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-opacity .pcr-slider{flex-grow:1;border-radius:50em}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-chooser .pcr-slider{background:linear-gradient(to right, red, #ff0, lime, cyan, blue, #f0f, red)}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-opacity .pcr-slider{background:linear-gradient(to right, transparent, black),url('data:image/svg+xml;utf8, <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path fill="white" d="M1,0H2V1H1V0ZM0,1H1V2H0V1Z"/><path fill="gray" d="M0,0H1V1H0V0ZM1,1H2V2H1V1Z"/></svg>');background-size:100%, 0.25em}
+  `)
+  
+  
+  // CHANGES from original: changed "t.Pickr=e()" to "t.Pickr=this.Pickr=e()"
+  /*! Pickr 1.8.2 MIT | https://github.com/Simonwep/pickr */
+  !function(t,e){"object"==typeof exports&&"object"==typeof module?module.exports=e():"function"==typeof define&&define.amd?define([],e):"object"==typeof exports?exports.Pickr=e():t.Pickr=this.Pickr=e()}(self,(function(){return(()=>{"use strict";var t={d:(e,o)=>{for(var n in o)t.o(o,n)&&!t.o(e,n)&&Object.defineProperty(e,n,{enumerable:!0,get:o[n]})},o:(t,e)=>Object.prototype.hasOwnProperty.call(t,e),r:t=>{"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(t,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(t,"__esModule",{value:!0})}},e={};t.d(e,{default:()=>L});var o={};function n(t,e,o,n,i={}){e instanceof HTMLCollection||e instanceof NodeList?e=Array.from(e):Array.isArray(e)||(e=[e]),Array.isArray(o)||(o=[o]);for(const s of e)for(const e of o)s[t](e,n,{capture:!1,...i});return Array.prototype.slice.call(arguments,1)}t.r(o),t.d(o,{adjustableInputNumbers:()=>p,createElementFromString:()=>r,createFromTemplate:()=>a,eventPath:()=>l,off:()=>s,on:()=>i,resolveElement:()=>c});const i=n.bind(null,"addEventListener"),s=n.bind(null,"removeEventListener");function r(t){const e=document.createElement("div");return e.innerHTML=t.trim(),e.firstElementChild}function a(t){const e=(t,e)=>{const o=t.getAttribute(e);return t.removeAttribute(e),o},o=(t,n={})=>{const i=e(t,":obj"),s=e(t,":ref"),r=i?n[i]={}:n;s&&(n[s]=t);for(const n of Array.from(t.children)){const t=e(n,":arr"),i=o(n,t?{}:r);t&&(r[t]||(r[t]=[])).push(Object.keys(i).length?i:n)}return n};return o(r(t))}function l(t){let e=t.path||t.composedPath&&t.composedPath();if(e)return e;let o=t.target.parentElement;for(e=[t.target,o];o=o.parentElement;)e.push(o);return e.push(document,window),e}function c(t){return t instanceof Element?t:"string"==typeof t?t.split(/>>/g).reduce(((t,e,o,n)=>(t=t.querySelector(e),o<n.length-1?t.shadowRoot:t)),document):null}function p(t,e=(t=>t)){function o(o){const n=[.001,.01,.1][Number(o.shiftKey||2*o.ctrlKey)]*(o.deltaY<0?1:-1);let i=0,s=t.selectionStart;t.value=t.value.replace(/[\d.]+/g,((t,o)=>o<=s&&o+t.length>=s?(s=o,e(Number(t),n,i)):(i++,t))),t.focus(),t.setSelectionRange(s,s),o.preventDefault(),t.dispatchEvent(new Event("input"))}i(t,"focus",(()=>i(window,"wheel",o,{passive:!1}))),i(t,"blur",(()=>s(window,"wheel",o)))}const{min:u,max:h,floor:d,round:m}=Math;function f(t,e,o){e/=100,o/=100;const n=d(t=t/360*6),i=t-n,s=o*(1-e),r=o*(1-i*e),a=o*(1-(1-i)*e),l=n%6;return[255*[o,r,s,s,a,o][l],255*[a,o,o,r,s,s][l],255*[s,s,a,o,o,r][l]]}function v(t,e,o){const n=(2-(e/=100))*(o/=100)/2;return 0!==n&&(e=1===n?0:n<.5?e*o/(2*n):e*o/(2-2*n)),[t,100*e,100*n]}function b(t,e,o){const n=u(t/=255,e/=255,o/=255),i=h(t,e,o),s=i-n;let r,a;if(0===s)r=a=0;else{a=s/i;const n=((i-t)/6+s/2)/s,l=((i-e)/6+s/2)/s,c=((i-o)/6+s/2)/s;t===i?r=c-l:e===i?r=1/3+n-c:o===i&&(r=2/3+l-n),r<0?r+=1:r>1&&(r-=1)}return[360*r,100*a,100*i]}function y(t,e,o,n){e/=100,o/=100;return[...b(255*(1-u(1,(t/=100)*(1-(n/=100))+n)),255*(1-u(1,e*(1-n)+n)),255*(1-u(1,o*(1-n)+n)))]}function g(t,e,o){e/=100;const n=2*(e*=(o/=100)<.5?o:1-o)/(o+e)*100,i=100*(o+e);return[t,isNaN(n)?0:n,i]}function _(t){return b(...t.match(/.{2}/g).map((t=>parseInt(t,16))))}function w(t){t=t.match(/^[a-zA-Z]+$/)?function(t){if("black"===t.toLowerCase())return"#000";const e=document.createElement("canvas").getContext("2d");return e.fillStyle=t,"#000"===e.fillStyle?null:e.fillStyle}(t):t;const e={cmyk:/^cmyk[\D]+([\d.]+)[\D]+([\d.]+)[\D]+([\d.]+)[\D]+([\d.]+)/i,rgba:/^((rgba)|rgb)[\D]+([\d.]+)[\D]+([\d.]+)[\D]+([\d.]+)[\D]*?([\d.]+|$)/i,hsla:/^((hsla)|hsl)[\D]+([\d.]+)[\D]+([\d.]+)[\D]+([\d.]+)[\D]*?([\d.]+|$)/i,hsva:/^((hsva)|hsv)[\D]+([\d.]+)[\D]+([\d.]+)[\D]+([\d.]+)[\D]*?([\d.]+|$)/i,hexa:/^#?(([\dA-Fa-f]{3,4})|([\dA-Fa-f]{6})|([\dA-Fa-f]{8}))$/i},o=t=>t.map((t=>/^(|\d+)\.\d+|\d+$/.test(t)?Number(t):void 0));let n;t:for(const i in e){if(!(n=e[i].exec(t)))continue;const s=t=>!!n[2]==("number"==typeof t);switch(i){case"cmyk":{const[,t,e,s,r]=o(n);if(t>100||e>100||s>100||r>100)break t;return{values:y(t,e,s,r),type:i}}case"rgba":{const[,,,t,e,r,a]=o(n);if(t>255||e>255||r>255||a<0||a>1||!s(a))break t;return{values:[...b(t,e,r),a],a,type:i}}case"hexa":{let[,t]=n;4!==t.length&&3!==t.length||(t=t.split("").map((t=>t+t)).join(""));const e=t.substring(0,6);let o=t.substring(6);return o=o?parseInt(o,16)/255:void 0,{values:[..._(e),o],a:o,type:i}}case"hsla":{const[,,,t,e,r,a]=o(n);if(t>360||e>100||r>100||a<0||a>1||!s(a))break t;return{values:[...g(t,e,r),a],a,type:i}}case"hsva":{const[,,,t,e,r,a]=o(n);if(t>360||e>100||r>100||a<0||a>1||!s(a))break t;return{values:[t,e,r,a],a,type:i}}}}return{values:null,type:null}}function A(t=0,e=0,o=0,n=1){const i=(t,e)=>(o=-1)=>e(~o?t.map((t=>Number(t.toFixed(o)))):t),s={h:t,s:e,v:o,a:n,toHSVA(){const t=[s.h,s.s,s.v,s.a];return t.toString=i(t,(t=>`hsva(${t[0]}, ${t[1]}%, ${t[2]}%, ${s.a})`)),t},toHSLA(){const t=[...v(s.h,s.s,s.v),s.a];return t.toString=i(t,(t=>`hsla(${t[0]}, ${t[1]}%, ${t[2]}%, ${s.a})`)),t},toRGBA(){const t=[...f(s.h,s.s,s.v),s.a];return t.toString=i(t,(t=>`rgba(${t[0]}, ${t[1]}, ${t[2]}, ${s.a})`)),t},toCMYK(){const t=function(t,e,o){const n=f(t,e,o),i=n[0]/255,s=n[1]/255,r=n[2]/255,a=u(1-i,1-s,1-r);return[100*(1===a?0:(1-i-a)/(1-a)),100*(1===a?0:(1-s-a)/(1-a)),100*(1===a?0:(1-r-a)/(1-a)),100*a]}(s.h,s.s,s.v);return t.toString=i(t,(t=>`cmyk(${t[0]}%, ${t[1]}%, ${t[2]}%, ${t[3]}%)`)),t},toHEXA(){const t=function(t,e,o){return f(t,e,o).map((t=>m(t).toString(16).padStart(2,"0")))}(s.h,s.s,s.v),e=s.a>=1?"":Number((255*s.a).toFixed(0)).toString(16).toUpperCase().padStart(2,"0");return e&&t.push(e),t.toString=()=>`#${t.join("").toUpperCase()}`,t},clone:()=>A(s.h,s.s,s.v,s.a)};return s}const C=t=>Math.max(Math.min(t,1),0);function $(t){const e={options:Object.assign({lock:null,onchange:()=>0,onstop:()=>0},t),_keyboard(t){const{options:o}=e,{type:n,key:i}=t;if(document.activeElement===o.wrapper){const{lock:o}=e.options,s="ArrowUp"===i,r="ArrowRight"===i,a="ArrowDown"===i,l="ArrowLeft"===i;if("keydown"===n&&(s||r||a||l)){let n=0,i=0;"v"===o?n=s||r?1:-1:"h"===o?n=s||r?-1:1:(i=s?-1:a?1:0,n=l?-1:r?1:0),e.update(C(e.cache.x+.01*n),C(e.cache.y+.01*i)),t.preventDefault()}else i.startsWith("Arrow")&&(e.options.onstop(),t.preventDefault())}},_tapstart(t){i(document,["mouseup","touchend","touchcancel"],e._tapstop),i(document,["mousemove","touchmove"],e._tapmove),t.cancelable&&t.preventDefault(),e._tapmove(t)},_tapmove(t){const{options:o,cache:n}=e,{lock:i,element:s,wrapper:r}=o,a=r.getBoundingClientRect();let l=0,c=0;if(t){const e=t&&t.touches&&t.touches[0];l=t?(e||t).clientX:0,c=t?(e||t).clientY:0,l<a.left?l=a.left:l>a.left+a.width&&(l=a.left+a.width),c<a.top?c=a.top:c>a.top+a.height&&(c=a.top+a.height),l-=a.left,c-=a.top}else n&&(l=n.x*a.width,c=n.y*a.height);"h"!==i&&(s.style.left=`calc(${l/a.width*100}% - ${s.offsetWidth/2}px)`),"v"!==i&&(s.style.top=`calc(${c/a.height*100}% - ${s.offsetHeight/2}px)`),e.cache={x:l/a.width,y:c/a.height};const p=C(l/a.width),u=C(c/a.height);switch(i){case"v":return o.onchange(p);case"h":return o.onchange(u);default:return o.onchange(p,u)}},_tapstop(){e.options.onstop(),s(document,["mouseup","touchend","touchcancel"],e._tapstop),s(document,["mousemove","touchmove"],e._tapmove)},trigger(){e._tapmove()},update(t=0,o=0){const{left:n,top:i,width:s,height:r}=e.options.wrapper.getBoundingClientRect();"h"===e.options.lock&&(o=t),e._tapmove({clientX:n+s*t,clientY:i+r*o})},destroy(){const{options:t,_tapstart:o,_keyboard:n}=e;s(document,["keydown","keyup"],n),s([t.wrapper,t.element],"mousedown",o),s([t.wrapper,t.element],"touchstart",o,{passive:!1})}},{options:o,_tapstart:n,_keyboard:r}=e;return i([o.wrapper,o.element],"mousedown",n),i([o.wrapper,o.element],"touchstart",n,{passive:!1}),i(document,["keydown","keyup"],r),e}function k(t={}){t=Object.assign({onchange:()=>0,className:"",elements:[]},t);const e=i(t.elements,"click",(e=>{t.elements.forEach((o=>o.classList[e.target===o?"add":"remove"](t.className))),t.onchange(e),e.stopPropagation()}));return{destroy:()=>s(...e)}}const S={variantFlipOrder:{start:"sme",middle:"mse",end:"ems"},positionFlipOrder:{top:"tbrl",right:"rltb",bottom:"btrl",left:"lrbt"},position:"bottom",margin:8},O=(t,e,o)=>{const{container:n,margin:i,position:s,variantFlipOrder:r,positionFlipOrder:a}={container:document.documentElement.getBoundingClientRect(),...S,...o},{left:l,top:c}=e.style;e.style.left="0",e.style.top="0";const p=t.getBoundingClientRect(),u=e.getBoundingClientRect(),h={t:p.top-u.height-i,b:p.bottom+i,r:p.right+i,l:p.left-u.width-i},d={vs:p.left,vm:p.left+p.width/2+-u.width/2,ve:p.left+p.width-u.width,hs:p.top,hm:p.bottom-p.height/2-u.height/2,he:p.bottom-u.height},[m,f="middle"]=s.split("-"),v=a[m],b=r[f],{top:y,left:g,bottom:_,right:w}=n;for(const t of v){const o="t"===t||"b"===t,n=h[t],[i,s]=o?["top","left"]:["left","top"],[r,a]=o?[u.height,u.width]:[u.width,u.height],[l,c]=o?[_,w]:[w,_],[p,m]=o?[y,g]:[g,y];if(!(n<p||n+r>l))for(const r of b){const l=d[(o?"v":"h")+r];if(!(l<m||l+a>c))return e.style[s]=l-u[s]+"px",e.style[i]=n-u[i]+"px",t+r}}return e.style.left=l,e.style.top=c,null};function E(t,e,o){return e in t?Object.defineProperty(t,e,{value:o,enumerable:!0,configurable:!0,writable:!0}):t[e]=o,t}class L{constructor(t){E(this,"_initializingActive",!0),E(this,"_recalc",!0),E(this,"_nanopop",null),E(this,"_root",null),E(this,"_color",A()),E(this,"_lastColor",A()),E(this,"_swatchColors",[]),E(this,"_setupAnimationFrame",null),E(this,"_eventListener",{init:[],save:[],hide:[],show:[],clear:[],change:[],changestop:[],cancel:[],swatchselect:[]}),this.options=t=Object.assign({...L.DEFAULT_OPTIONS},t);const{swatches:e,components:o,theme:n,sliders:i,lockOpacity:s,padding:r}=t;["nano","monolith"].includes(n)&&!i&&(t.sliders="h"),o.interaction||(o.interaction={});const{preview:a,opacity:l,hue:c,palette:p}=o;o.opacity=!s&&l,o.palette=p||a||l||c,this._preBuild(),this._buildComponents(),this._bindEvents(),this._finalBuild(),e&&e.length&&e.forEach((t=>this.addSwatch(t)));const{button:u,app:h}=this._root;this._nanopop=((t,e,o)=>{const n="object"!=typeof t||t instanceof HTMLElement?{reference:t,popper:e,...o}:t;return{update(t=n){const{reference:e,popper:o}=Object.assign(n,t);if(!o||!e)throw new Error("Popper- or reference-element missing.");return O(e,o,n)}}})(u,h,{margin:r}),u.setAttribute("role","button"),u.setAttribute("aria-label",this._t("btn:toggle"));const d=this;this._setupAnimationFrame=requestAnimationFrame((function e(){if(!h.offsetWidth)return requestAnimationFrame(e);d.setColor(t.default),d._rePositioningPicker(),t.defaultRepresentation&&(d._representation=t.defaultRepresentation,d.setColorRepresentation(d._representation)),t.showAlways&&d.show(),d._initializingActive=!1,d._emit("init")}))}_preBuild(){const{options:t}=this;for(const e of["el","container"])t[e]=c(t[e]);this._root=(t=>{const{components:e,useAsButton:o,inline:n,appClass:i,theme:s,lockOpacity:r}=t.options,l=t=>t?"":'style="display:none" hidden',c=e=>t._t(e),p=a(`\n      <div :ref="root" class="pickr">\n\n        ${o?"":'<button type="button" :ref="button" class="pcr-button"></button>'}\n\n        <div :ref="app" class="pcr-app ${i||""}" data-theme="${s}" ${n?'style="position: unset"':""} aria-label="${c("ui:dialog")}" role="window">\n          <div class="pcr-selection" ${l(e.palette)}>\n            <div :obj="preview" class="pcr-color-preview" ${l(e.preview)}>\n              <button type="button" :ref="lastColor" class="pcr-last-color" aria-label="${c("btn:last-color")}"></button>\n              <div :ref="currentColor" class="pcr-current-color"></div>\n            </div>\n\n            <div :obj="palette" class="pcr-color-palette">\n              <div :ref="picker" class="pcr-picker"></div>\n              <div :ref="palette" class="pcr-palette" tabindex="0" aria-label="${c("aria:palette")}" role="listbox"></div>\n            </div>\n\n            <div :obj="hue" class="pcr-color-chooser" ${l(e.hue)}>\n              <div :ref="picker" class="pcr-picker"></div>\n              <div :ref="slider" class="pcr-hue pcr-slider" tabindex="0" aria-label="${c("aria:hue")}" role="slider"></div>\n            </div>\n\n            <div :obj="opacity" class="pcr-color-opacity" ${l(e.opacity)}>\n              <div :ref="picker" class="pcr-picker"></div>\n              <div :ref="slider" class="pcr-opacity pcr-slider" tabindex="0" aria-label="${c("aria:opacity")}" role="slider"></div>\n            </div>\n          </div>\n\n          <div class="pcr-swatches ${e.palette?"":"pcr-last"}" :ref="swatches"></div>\n\n          <div :obj="interaction" class="pcr-interaction" ${l(Object.keys(e.interaction).length)}>\n            <input :ref="result" class="pcr-result" type="text" spellcheck="false" ${l(e.interaction.input)} aria-label="${c("aria:input")}">\n\n            <input :arr="options" class="pcr-type" data-type="HEXA" value="${r?"HEX":"HEXA"}" type="button" ${l(e.interaction.hex)}>\n            <input :arr="options" class="pcr-type" data-type="RGBA" value="${r?"RGB":"RGBA"}" type="button" ${l(e.interaction.rgba)}>\n            <input :arr="options" class="pcr-type" data-type="HSLA" value="${r?"HSL":"HSLA"}" type="button" ${l(e.interaction.hsla)}>\n            <input :arr="options" class="pcr-type" data-type="HSVA" value="${r?"HSV":"HSVA"}" type="button" ${l(e.interaction.hsva)}>\n            <input :arr="options" class="pcr-type" data-type="CMYK" value="CMYK" type="button" ${l(e.interaction.cmyk)}>\n\n            <input :ref="save" class="pcr-save" value="${c("btn:save")}" type="button" ${l(e.interaction.save)} aria-label="${c("aria:btn:save")}">\n            <input :ref="cancel" class="pcr-cancel" value="${c("btn:cancel")}" type="button" ${l(e.interaction.cancel)} aria-label="${c("aria:btn:cancel")}">\n            <input :ref="clear" class="pcr-clear" value="${c("btn:clear")}" type="button" ${l(e.interaction.clear)} aria-label="${c("aria:btn:clear")}">\n          </div>\n        </div>\n      </div>\n    `),u=p.interaction;return u.options.find((t=>!t.hidden&&!t.classList.add("active"))),u.type=()=>u.options.find((t=>t.classList.contains("active"))),p})(this),t.useAsButton&&(this._root.button=t.el),t.container.appendChild(this._root.root)}_finalBuild(){const t=this.options,e=this._root;if(t.container.removeChild(e.root),t.inline){const o=t.el.parentElement;t.el.nextSibling?o.insertBefore(e.app,t.el.nextSibling):o.appendChild(e.app)}else t.container.appendChild(e.app);t.useAsButton?t.inline&&t.el.remove():t.el.parentNode.replaceChild(e.root,t.el),t.disabled&&this.disable(),t.comparison||(e.button.style.transition="none",t.useAsButton||(e.preview.lastColor.style.transition="none")),this.hide()}_buildComponents(){const t=this,e=this.options.components,o=(t.options.sliders||"v").repeat(2),[n,i]=o.match(/^[vh]+$/g)?o:[],s=()=>this._color||(this._color=this._lastColor.clone()),r={palette:$({element:t._root.palette.picker,wrapper:t._root.palette.palette,onstop:()=>t._emit("changestop","slider",t),onchange(o,n){if(!e.palette)return;const i=s(),{_root:r,options:a}=t,{lastColor:l,currentColor:c}=r.preview;t._recalc&&(i.s=100*o,i.v=100-100*n,i.v<0&&(i.v=0),t._updateOutput("slider"));const p=i.toRGBA().toString(0);this.element.style.background=p,this.wrapper.style.background=`\n                        linear-gradient(to top, rgba(0, 0, 0, ${i.a}), transparent),\n                        linear-gradient(to left, hsla(${i.h}, 100%, 50%, ${i.a}), rgba(255, 255, 255, ${i.a}))\n                    `,a.comparison?a.useAsButton||t._lastColor||l.style.setProperty("--pcr-color",p):(r.button.style.setProperty("--pcr-color",p),r.button.classList.remove("clear"));const u=i.toHEXA().toString();for(const{el:e,color:o}of t._swatchColors)e.classList[u===o.toHEXA().toString()?"add":"remove"]("pcr-active");c.style.setProperty("--pcr-color",p)}}),hue:$({lock:"v"===i?"h":"v",element:t._root.hue.picker,wrapper:t._root.hue.slider,onstop:()=>t._emit("changestop","slider",t),onchange(o){if(!e.hue||!e.palette)return;const n=s();t._recalc&&(n.h=360*o),this.element.style.backgroundColor=`hsl(${n.h}, 100%, 50%)`,r.palette.trigger()}}),opacity:$({lock:"v"===n?"h":"v",element:t._root.opacity.picker,wrapper:t._root.opacity.slider,onstop:()=>t._emit("changestop","slider",t),onchange(o){if(!e.opacity||!e.palette)return;const n=s();t._recalc&&(n.a=Math.round(100*o)/100),this.element.style.background=`rgba(0, 0, 0, ${n.a})`,r.palette.trigger()}}),selectable:k({elements:t._root.interaction.options,className:"active",onchange(e){t._representation=e.target.getAttribute("data-type").toUpperCase(),t._recalc&&t._updateOutput("swatch")}})};this._components=r}_bindEvents(){const{_root:t,options:e}=this,o=[i(t.interaction.clear,"click",(()=>this._clearColor())),i([t.interaction.cancel,t.preview.lastColor],"click",(()=>{this.setHSVA(...(this._lastColor||this._color).toHSVA(),!0),this._emit("cancel")})),i(t.interaction.save,"click",(()=>{!this.applyColor()&&!e.showAlways&&this.hide()})),i(t.interaction.result,["keyup","input"],(t=>{this.setColor(t.target.value,!0)&&!this._initializingActive&&(this._emit("change",this._color,"input",this),this._emit("changestop","input",this)),t.stopImmediatePropagation()})),i(t.interaction.result,["focus","blur"],(t=>{this._recalc="blur"===t.type,this._recalc&&this._updateOutput(null)})),i([t.palette.palette,t.palette.picker,t.hue.slider,t.hue.picker,t.opacity.slider,t.opacity.picker],["mousedown","touchstart"],(()=>this._recalc=!0),{passive:!0})];if(!e.showAlways){const n=e.closeWithKey;o.push(i(t.button,"click",(()=>this.isOpen()?this.hide():this.show())),i(document,"keyup",(t=>this.isOpen()&&(t.key===n||t.code===n)&&this.hide())),i(document,["touchstart","mousedown"],(e=>{this.isOpen()&&!l(e).some((e=>e===t.app||e===t.button))&&this.hide()}),{capture:!0}))}if(e.adjustableNumbers){const e={rgba:[255,255,255,1],hsva:[360,100,100,1],hsla:[360,100,100,1],cmyk:[100,100,100,100]};p(t.interaction.result,((t,o,n)=>{const i=e[this.getColorRepresentation().toLowerCase()];if(i){const e=i[n],s=t+(e>=100?1e3*o:o);return s<=0?0:Number((s<e?s:e).toPrecision(3))}return t}))}if(e.autoReposition&&!e.inline){let t=null;const n=this;o.push(i(window,["scroll","resize"],(()=>{n.isOpen()&&(e.closeOnScroll&&n.hide(),null===t?(t=setTimeout((()=>t=null),100),requestAnimationFrame((function e(){n._rePositioningPicker(),null!==t&&requestAnimationFrame(e)}))):(clearTimeout(t),t=setTimeout((()=>t=null),100)))}),{capture:!0}))}this._eventBindings=o}_rePositioningPicker(){const{options:t}=this;if(!t.inline){if(!this._nanopop.update({container:document.body.getBoundingClientRect(),position:t.position})){const t=this._root.app,e=t.getBoundingClientRect();t.style.top=(window.innerHeight-e.height)/2+"px",t.style.left=(window.innerWidth-e.width)/2+"px"}}}_updateOutput(t){const{_root:e,_color:o,options:n}=this;if(e.interaction.type()){const t=`to${e.interaction.type().getAttribute("data-type")}`;e.interaction.result.value="function"==typeof o[t]?o[t]().toString(n.outputPrecision):""}!this._initializingActive&&this._recalc&&this._emit("change",o,t,this)}_clearColor(t=!1){const{_root:e,options:o}=this;o.useAsButton||e.button.style.setProperty("--pcr-color","rgba(0, 0, 0, 0.15)"),e.button.classList.add("clear"),o.showAlways||this.hide(),this._lastColor=null,this._initializingActive||t||(this._emit("save",null),this._emit("clear"))}_parseLocalColor(t){const{values:e,type:o,a:n}=w(t),{lockOpacity:i}=this.options,s=void 0!==n&&1!==n;return e&&3===e.length&&(e[3]=void 0),{values:!e||i&&s?null:e,type:o}}_t(t){return this.options.i18n[t]||L.I18N_DEFAULTS[t]}_emit(t,...e){this._eventListener[t].forEach((t=>t(...e,this)))}on(t,e){return this._eventListener[t].push(e),this}off(t,e){const o=this._eventListener[t]||[],n=o.indexOf(e);return~n&&o.splice(n,1),this}addSwatch(t){const{values:e}=this._parseLocalColor(t);if(e){const{_swatchColors:t,_root:o}=this,n=A(...e),s=r(`<button type="button" style="--pcr-color: ${n.toRGBA().toString(0)}" aria-label="${this._t("btn:swatch")}"/>`);return o.swatches.appendChild(s),t.push({el:s,color:n}),this._eventBindings.push(i(s,"click",(()=>{this.setHSVA(...n.toHSVA(),!0),this._emit("swatchselect",n),this._emit("change",n,"swatch",this)}))),!0}return!1}removeSwatch(t){const e=this._swatchColors[t];if(e){const{el:o}=e;return this._root.swatches.removeChild(o),this._swatchColors.splice(t,1),!0}return!1}applyColor(t=!1){const{preview:e,button:o}=this._root,n=this._color.toRGBA().toString(0);return e.lastColor.style.setProperty("--pcr-color",n),this.options.useAsButton||o.style.setProperty("--pcr-color",n),o.classList.remove("clear"),this._lastColor=this._color.clone(),this._initializingActive||t||this._emit("save",this._color),this}destroy(){cancelAnimationFrame(this._setupAnimationFrame),this._eventBindings.forEach((t=>s(...t))),Object.keys(this._components).forEach((t=>this._components[t].destroy()))}destroyAndRemove(){this.destroy();const{root:t,app:e}=this._root;t.parentElement&&t.parentElement.removeChild(t),e.parentElement.removeChild(e),Object.keys(this).forEach((t=>this[t]=null))}hide(){return!!this.isOpen()&&(this._root.app.classList.remove("visible"),this._emit("hide"),!0)}show(){return!this.options.disabled&&!this.isOpen()&&(this._root.app.classList.add("visible"),this._rePositioningPicker(),this._emit("show",this._color),this)}isOpen(){return this._root.app.classList.contains("visible")}setHSVA(t=360,e=0,o=0,n=1,i=!1){const s=this._recalc;if(this._recalc=!1,t<0||t>360||e<0||e>100||o<0||o>100||n<0||n>1)return!1;this._color=A(t,e,o,n);const{hue:r,opacity:a,palette:l}=this._components;return r.update(t/360),a.update(n),l.update(e/100,1-o/100),i||this.applyColor(),s&&this._updateOutput(),this._recalc=s,!0}setColor(t,e=!1){if(null===t)return this._clearColor(e),!0;const{values:o,type:n}=this._parseLocalColor(t);if(o){const t=n.toUpperCase(),{options:i}=this._root.interaction,s=i.find((e=>e.getAttribute("data-type")===t));if(s&&!s.hidden)for(const t of i)t.classList[t===s?"add":"remove"]("active");return!!this.setHSVA(...o,e)&&this.setColorRepresentation(t)}return!1}setColorRepresentation(t){return t=t.toUpperCase(),!!this._root.interaction.options.find((e=>e.getAttribute("data-type").startsWith(t)&&!e.click()))}getColorRepresentation(){return this._representation}getColor(){return this._color}getSelectedColor(){return this._lastColor}getRoot(){return this._root}disable(){return this.hide(),this.options.disabled=!0,this._root.button.classList.add("disabled"),this}enable(){return this.options.disabled=!1,this._root.button.classList.remove("disabled"),this}}return E(L,"utils",o),E(L,"version","1.8.2"),E(L,"I18N_DEFAULTS",{"ui:dialog":"color picker dialog","btn:toggle":"toggle color picker dialog","btn:swatch":"color swatch","btn:last-color":"use previous color","btn:save":"Save","btn:cancel":"Cancel","btn:clear":"Clear","aria:btn:save":"save and close","aria:btn:cancel":"cancel and close","aria:btn:clear":"clear and close","aria:input":"color input field","aria:palette":"color selection area","aria:hue":"hue selection slider","aria:opacity":"selection slider"}),E(L,"DEFAULT_OPTIONS",{appClass:null,theme:"classic",useAsButton:!1,padding:8,disabled:!1,comparison:!0,closeOnScroll:!1,outputPrecision:0,lockOpacity:!1,autoReposition:!0,container:"body",components:{interaction:{}},i18n:{},swatches:null,inline:!1,sliders:null,default:"#42445a",defaultRepresentation:null,position:"bottom-middle",adjustableNumbers:!0,showAlways:!1,closeWithKey:"Escape"}),E(L,"create",(t=>new L(t))),e=e.default})()}));
+  //# sourceMappingURL=pickr.min.js.map
+  
+  
   }
 
-  if (!ids) return
-
-  openSegmentsInNewTab(ids)
-}
-
-
-function openSegmentsInNewTab(ids) {
-
-  function prepareState(ids) {
-    const state = viewer.saver.pull()
-
-    state.state.layers.forEach(layer => {
-      if (layer.type !== 'segmentation_with_graph') return
-
-      layer.segments = ids
-      layer.hiddenSegments = []
-    })
-
-    return state
-  }
-
-  function addToLS(state) {
-    const stateId = Dock.getRandomHexString()
-    const stateKey = 'neuroglancerSaveState_v2'
-    const lsName = stateKey + '-' + stateId
-    
-    // Source: neuroglancer/save_state/savet_state.ts -> SaveState -> robustSet()
-    while (true) {
-      try {
-        localStorage.setItem(lsName, JSON.stringify(state))
-        let stateManager = localStorage.getItem(stateKey)
-        if (stateManager) {
-          stateManager = JSON.parse(stateManager)
-          stateManager.push(stateId)
-          localStorage.setItem(stateKey, JSON.stringify(stateManager))
-        }
-        break
+function dataRequestForConnectivity(id) {
+  return JSON.stringify({
+    output: '..post_submit_download__summary.children...post_submit_download__upstream.children...post_submit_download__downstream.children...post_submit_linkbuilder_buttons.children...summary_table.columns...summary_table.data...incoming_table.columns...incoming_table.data...outgoing_table.columns...outgoing_table.data...graph_div.children...message_text.value...message_text.rows...submit_loader.children..',
+    outputs: [
+      { id: 'post_submit_download__summary', property: 'children' },
+      { id: 'post_submit_download__upstream', property: 'children' },
+      { id: 'post_submit_download__downstream', property: 'children' },
+      { id: 'post_submit_linkbuilder_buttons', property: 'children' },
+      { id: 'summary_table', property: 'columns' },
+      { id: 'summary_table', property: 'data' },
+      { id: 'incoming_table', property: 'columns' },
+      { id: 'incoming_table', property: 'data' },
+      { id: 'outgoing_table', property: 'columns' },
+      { id: 'outgoing_table', property: 'data' },
+      { id: 'graph_div', property: 'children' },
+      { id: 'message_text', property: 'value' },
+      { id: 'message_text', property: 'rows' },
+      { id: 'submit_loader', property: 'children' }
+    ],
+    inputs: [{ id: 'submit_button', property: 'n_clicks' }],
+    changedPropIds: [],
+    state: [
+      {
+        id: { id_inner: 'input_field', type: 'url_helper' },
+        property: 'value',
+        value: id
+      },
+      {
+        id: { id_inner: 'cleft_thresh_field', type: 'url_helper' },
+        property: 'value',
+        value: '50'
+      },
+      {
+        id: { id_inner: 'timestamp_field', type: 'url_helper' },
+        property: 'value'
+      },
+      {
+        id: { id_inner: 'filter_list_field', type: 'url_helper' },
+        property: 'value'
       }
-      catch (e) {
-        const manager = JSON.parse(localStorage.getItem(stateKey))
-        if (!manager.length) throw e
-
-        const targets = manager.splice(0, 1);
-        const serializedManager = JSON.stringify(manager)
-        localStorage.setItem(stateKey, serializedManager)
-        targets.forEach(key => localStorage.removeItem(`${stateKey}-${key}`))
-      }
-    }
-
-    return stateId
-  }
-
-  function openInNewTab(stateId) {
-    const url = new URL(unsafeWindow.location.href)
-
-    unsafeWindow.open(url.origin + '/?local_id=' + stateId, '_blank')
-  }
-
-  const newState = prepareState(ids)
-  const stateId = addToLS(newState)
-  openInNewTab(stateId)
+    ]
+  })
 }
 
 
-function hideAllButHandler(e) {
-  let target = e.target
+function getConnectivity(id, onloadCallback, onreadystatechangeCallback, onerrorCallback, direction = 'up') {
+  const authToken = localStorage.getItem('auth_token')
 
-  if (!target.classList.contains('segment-checkbox')) return
+  GM_xmlhttpRequest({
+    method: 'POST',
 
-  document.querySelectorAll('.segment-checkbox').forEach(el => {
-    if (el.checked && el !== target && el.title !== 'Uncheck to hide all segments') {
-      el.click()
+    url: 'https://prod.flywire-daf.com/dash/datastack/flywire_fafb_production/apps/fly_connectivity/_dash-update-component',
+
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      cookie: 'middle_auth_token=' + authToken
+    },
+
+    data: dataRequestForConnectivity(id),
+
+    onload: res => {
+      if (!res) return console.error('Error retrieving data for ' + id)
+
+      if (onloadCallback && typeof onloadCallback === 'function') {
+        onloadCallback(res, id, direction)
+      }
+    },
+
+    onreadystatechange: res => {
+      if (onreadystatechangeCallback && typeof onreadystatechangeCallback === 'function') {
+        onreadystatechangeCallback(res, id, direction)
+      }
+    },
+
+    onerror: res => {
+      if (onerrorCallback && typeof onerrorCallback === 'function') {
+        onerrorCallback(res, id, direction)
+      }
     }
   })
-
-  if (!target.checked) {
-    target.click()
-  }
 }
+
+
+
 
 
 function addActionsMenu() {
@@ -165,6 +159,9 @@ function addActionsMenu() {
 
     ['optgroup', 'Find common partners for'],
     ['visible', 'find-common-partners-visible'],
+
+    ['optgroup', 'Show neuropils coverage'],
+    ['visible', 'show-neuropils-coverage'],
 
     ['optgroup', 'Show only'],
     ['identified', 'show-identified-only'],
@@ -282,644 +279,6 @@ function actionsHandler(e) {
     }
   })
 
-  function hideAll() {
-    segments.forEach(segment => {
-      const checkbox = segment.getElementsByClassName('segment-checkbox')[0]
-      if (checkbox.checked) {
-        checkbox.click()
-      }
-    })
-  }
-
-  function show(type) {
-    hideAll()
-    type.forEach(segment => {
-      const checkbox = segment.getElementsByClassName('segment-checkbox')[0]
-      if (!checkbox.checked) {
-        checkbox.click()
-      }
-    })
-  }
-
-  function hide(type) {
-    type.forEach(segment => {
-      const checkbox = segment.getElementsByClassName('segment-checkbox')[0]
-      if (checkbox.checked) {
-        checkbox.click()
-      }
-    })
-  }
-
-  function openInNewTab(type) {
-    const ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
-
-    if (!ids) return
-
-    openSegmentsInNewTab(ids)
-  }
-
-  function remove(type) {
-    type.forEach(segment => segment.getElementsByClassName('segment-button')[0].click())
-  }
-
-  function copy(type) {
-    const ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
-
-    navigator.clipboard.writeText(ids.join())
-  }
-
-  function changeColor(type) {
-    const colorSelectors = type.map(segment => segment.getElementsByClassName('segment-color-selector')[0])
-    const previousColors = colorSelectors.map(selector => selector.value)
-    let pickr
-
-    Dock.dialog({
-      id: 'kk-change-color-dialog',
-      html: '<input id="kk-change-color-selector" />',
-      okCallback: okCallback,
-      okLabel: 'Change',
-      cancelCallback: () => {},
-      cancelLabel: 'Cancel',
-      afterCreateCallback: afterCreateCallback,
-      width: 228,
-      destroyAfterClosing: true
-    }).show()
-
-    function okCallback() {
-      const newColorArray = pickr.getColor().toRGBA()
-      let newColor = '#'
-      
-      for (let i = 0; i <= 2; i++) {
-        let colorComponent = Math.round(newColorArray[i]).toString(16)
-        if (colorComponent.length < 2) {
-          colorComponent = '0' + colorComponent
-        }
-        newColor += colorComponent
-      }
-
-      colorSelectors.forEach(selector => {
-        selector.value = newColor
-        const event = new Event('change')
-        selector.dispatchEvent(event)
-      })
-
-      viewer.layerManager.layersChanged.dispatch()
-    }
-
-    function afterCreateCallback() {
-      pickr = Pickr.create({
-        el: '#kk-change-color-selector',
-        theme: 'nano',
-        showAlways: true,
-        inline: true,
-        default: previousColors[0],
-        defaultRepresentation: 'HEX',
-        position: 'top-middle',
-        components: {
-          palette: false,
-          preview: true,
-          hue: true,
-          interaction: {
-            input: true
-          }
-        }
-      })
-      document.getElementsByClassName('pickr')[0].style.display = 'none'
-    }
-  }
-
-
-  function findCommon_requestData(id) {
-    return JSON.stringify({
-      output: '..post_submit_download__summary.children...post_submit_download__upstream.children...post_submit_download__downstream.children...post_submit_linkbuilder_buttons.children...summary_table.columns...summary_table.data...incoming_table.columns...incoming_table.data...outgoing_table.columns...outgoing_table.data...graph_div.children...message_text.value...message_text.rows...submit_loader.children..',
-      outputs: [
-        { id: 'post_submit_download__summary', property: 'children' },
-        { id: 'post_submit_download__upstream', property: 'children' },
-        { id: 'post_submit_download__downstream', property: 'children' },
-        { id: 'post_submit_linkbuilder_buttons', property: 'children' },
-        { id: 'summary_table', property: 'columns' },
-        { id: 'summary_table', property: 'data' },
-        { id: 'incoming_table', property: 'columns' },
-        { id: 'incoming_table', property: 'data' },
-        { id: 'outgoing_table', property: 'columns' },
-        { id: 'outgoing_table', property: 'data' },
-        { id: 'graph_div', property: 'children' },
-        { id: 'message_text', property: 'value' },
-        { id: 'message_text', property: 'rows' },
-        { id: 'submit_loader', property: 'children' }
-      ],
-      inputs: [{ id: 'submit_button', property: 'n_clicks' }],
-      changedPropIds: [],
-      state: [
-        {
-          id: { id_inner: 'input_field', type: 'url_helper' },
-          property: 'value',
-          value: id
-        },
-        {
-          id: { id_inner: 'cleft_thresh_field', type: 'url_helper' },
-          property: 'value',
-          value: '50'
-        },
-        {
-          id: { id_inner: 'timestamp_field', type: 'url_helper' },
-          property: 'value'
-        },
-        {
-          id: { id_inner: 'filter_list_field', type: 'url_helper' },
-          property: 'value'
-        }
-      ]
-    })
-  }
-
-
-  function findCommon_request(id, onloadCallback, onreadystatechangeCallback, onerrorCallback, direction) {
-    const authToken = localStorage.getItem('auth_token')
-
-    GM_xmlhttpRequest({
-      method: 'POST',
-
-      url: 'https://prod.flywire-daf.com/dash/datastack/flywire_fafb_production/apps/fly_connectivity/_dash-update-component',
-
-      headers: {
-        accept: 'application/json',
-        'content-type': 'application/json',
-        cookie: 'middle_auth_token=' + authToken
-      },
-
-      data: findCommon_requestData(id),
-
-      onload: res => {
-        if (!res) return console.error('Error retrieving data for ' + id)
-
-        if (onloadCallback && typeof onloadCallback === 'function') {
-          onloadCallback(res, id, direction)
-        }
-      },
-
-      onreadystatechange: res => {
-        if (onreadystatechangeCallback && typeof onreadystatechangeCallback === 'function') {
-          onreadystatechangeCallback(res, id, direction)
-        }
-      },
-
-      onerror: res => {
-        if (onerrorCallback && typeof onerrorCallback === 'function') {
-          onerrorCallback(res, id, direction)
-        }
-      }
-    })
-  }
-
-
-  function findCommon(type) {
-    const results = new Map()
-    let finishedCounter = 0
-
-    let ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
-    if (!ids || !ids.length) return console.error('No segments selected')
-    const numberOfSources = Math.min(ids.length, MAX_NUMBER_OF_SOURCES)
-    ids = ids.slice(0, MAX_NUMBER_OF_SOURCES)
-
-    ids.forEach(id => {
-      findCommon_request(id, onload, onreadystatechange)
-
-      function onreadystatechange(response) {
-        if (response && response.readyState === 4) {
-          finishedCounter++
-        }
-
-        if (finishedCounter === ids.length) {
-          document.getElementById('kk-find-common-results-wrapper-wrapper').style.display = 'block'
-        // without setTimeout onreadystatechange is called before last setting of results in the onload
-          setTimeout(findCommon_prepareResults.bind(null, MAX_NUMBER_OF_RESULTS, results, numberOfSources), 0)
-        }
-      }
-
-      function onload(res) {
-        const statusColumn = document.querySelector(`#kk-find-common-row-${id} .kk-find-common-row-status`)
-
-        try {
-          res = JSON.parse(res.responseText).response
-        }
-        catch {
-          statusColumn.textContent = 'Error'
-          statusColumn.style.color = '#FF0000'
-        }
-        if (!res) return
-
-        results.set(id, {
-          upstream: findCommon_filterResults(res.incoming_table, 'Upstream Partner ID'),
-          downstream: findCommon_filterResults(res.outgoing_table, 'Downstream Partner ID')
-        })
-
-        addNeuropilsBars(id, res.graph_div.children[2].props.children.props.figure.data[0])
-        addNeuropilsBars(id, res.graph_div.children[3].props.children.props.figure.data[0])
-
-        statusColumn.textContent = 'Success'
-        statusColumn.style.color = '#00FF00'
-      }
-    })
-
-    Dock.dialog({
-      id: 'kk-find-common-dialog',
-      html: findCommon_getHtml(ids),
-      css: findCommon_getCss(),
-      okCallback: () => {},
-      okLabel: 'Close',
-      width: 810,
-      destroyAfterClosing: true
-    }).show()
-
-    
-    function addListener(id, type, source) {
-      document.getElementById(id).addEventListener('click', findCommon_getResults.bind(null, type, source))
-    }
-
-    addListener('kk-find-common-get-all-upstream', 'all', 'upstream')
-    addListener('kk-find-common-get-common-upstream', 'common', 'upstream')
-    addListener('kk-find-common-get-all-downstream', 'all', 'downstream')
-    addListener('kk-find-common-get-common-downstream', 'common', 'downstream')
-    addListener('kk-find-common-get-all', 'all', 'both')
-    addListener('kk-find-common-get-common', 'common', 'both')
-
-    document.getElementById('kk-find-common-copy-results').addEventListener('click', findCommon_copyResults)
-  }
-
-
-  function findCommon_filterResults(table, rowName) {
-    const ids = []
-
-    table.data.forEach(row => {
-      const text = row[rowName]
-      if (!text) return
-
-      const id = text.substring(1, text.indexOf(']'))
-      ids.push(id)
-    })
-
-    return ids
-  }
-
-
-  function findCommon_getResults(type, source) {
-    document.getElementsByClassName('result-id').forEach(el => el.style.color = 'white')
-
-    const ids = []
-    document.querySelectorAll('.result-id input[type="checkbox"]:checked').forEach(el => {
-      const grandParent = el.parentElement.parentElement
-      const id = grandParent.dataset.id
-      const direction = grandParent.classList.contains('up') ? 'up' : 'down'
-      if (id) {
-        ids.push(id)
-        findCommon_request(id, onload, onreadystatechange, onerror, direction)
-        document.getElementById(`result-id-${id}-${direction}`).style.color = 'yellow'
-      }
-    })
-
-    if (!ids || !ids.length) return
-
-    const numberOfCells = ids.length
-    let numberOfFinishedRequests = 0
-
-    const results = {
-      upstream: [],
-      downstream: []
-    }
-
-    function onload(res, id, direction) {
-      try {
-        res = JSON.parse(res.responseText).response
-      }
-      catch {
-        document.getElementById(`result-id-${id}-${direction}`).style.color = '#FF0000'
-      }
-      if (!res) return
-
-      results.upstream[id] = findCommon_filterResults(res.incoming_table, 'Upstream Partner ID')
-      results.downstream[id] = findCommon_filterResults(res.outgoing_table, 'Downstream Partner ID')
-    }
-
-    function onreadystatechange(res, id, direction) {
-      if (res) {
-        if (res.readyState === 4) {
-          numberOfFinishedRequests++
-          document.getElementById(`result-id-${id}-${direction}`).style.color = '#00FF00'
-
-          if (numberOfFinishedRequests === numberOfCells) {
-            setTimeout(findCommon_prepareFinalResults.bind(null, results, type, source), 0)
-          }
-        }
-        else if (res.readyState === 3) {
-          document.getElementById(`result-id-${id}-${direction}`).style.color = '#FFA500'
-        }
-      }
-    }
-
-    function onerror(res, id, direction) {
-      document.getElementById(`result-id-${id}-${direction}`).style.color = '$FF0000'
-    }
-
-  }
-
-  function addNeuropilsBars(id, result) {
-    const row = document.getElementById(`kk-find-common-row-${id}`).getElementsByClassName('kk-find-common-graph-wrapper')[0]
-    row.classList.add('kk-find-common-graph-wrapper-background')
-
-    let labels = result.labels
-    let values = result.values
-    let colors = result.marker.colors
-    for (let i = 0; i < labels.length; i++) {
-      const bar = document.createElement('div')
-      bar.classList.add('kk-find-common-graph-graph')
-      bar.style.width = 400 * values[i] + 'px';
-      bar.style.backgroundColor = '#' + colors[i]
-      bar.title = labels[i]
-      row.appendChild(bar)
-    }
-  }
-
-
-  function findCommon_copyResults() {
-    const ids = []
-
-    document.querySelectorAll('.result-id input[type="checkbox"]:checked').forEach(el => {
-      ids.push(el.parentElement.parentElement.dataset.id)
-    })
-
-    navigator.clipboard.writeText(ids).then(() => {
-      Dock.dialog({
-        id: 'kk-find-common-copy-results-direct',
-        html: 'The IDs have been copied to clipboard',
-        cancelCallback: () => {},
-        cancelLabel: 'Close'
-      }).show()
-    })
-  }
-
-
-  function findCommon_prepareFinalResults(results, type, source) {
-    let finalResults = []
-    let tableToAnalyze = []
-    let numberOfTables = 0
-
-    if (source === 'upstream' || source === 'both') {
-      Object.entries(results.upstream).forEach(el => {
-        const id = el[0]
-        const partners = el[1]
-        tableToAnalyze.push(...partners)
-        numberOfTables++
-      })
-    }
-    
-    if (source === 'downstream' || source === 'both') {
-      Object.entries(results.downstream).forEach(el => {
-        const id = el[0]
-        const partners = el[1]
-        tableToAnalyze.push(...partners)
-        // for "both" we would count the same "big" common synaptic parnter twice
-        if (source !== 'both') {
-          numberOfTables++
-        }
-      })
-    }
-
-    if (type === 'common') {
-      const counters = []
-      for (let i = 0; i < tableToAnalyze.length; i++) {
-        if (!counters[tableToAnalyze[i]]) {
-          counters[tableToAnalyze[i]] = 1
-        }
-        else {
-          counters[tableToAnalyze[i]]++
-        }
-      }
-
-      Object.entries(counters).forEach(entry => {
-        const id = entry[0]
-        const el = entry[1]
-        if (el === numberOfTables) {
-          finalResults.push(id)
-        }
-      })
-    }
-    else {
-      // to get rid of the duplicates
-      tableToAnalyze = [...new Set(tableToAnalyze)]
-      finalResults = tableToAnalyze
-    }
-
-    finalResults.sort()
-
-    Dock.dialog({
-      id: 'kk-find-common-ids-copied-msg',
-      html: `Found ${finalResults.length} result(s)<br />Click the "Copy" button to copy the results to clipboard`,
-      okCallback: finalResults_okCallback,
-      okLabel: 'Copy',
-      cancelCallback: () => {},
-      cancelLabel: 'Close'
-    }).show()
-
-
-    function finalResults_okCallback() {
-      navigator.clipboard.writeText(finalResults).then(() => {
-        Dock.dialog({
-          id: 'kk-copy-common-copied-confirm',
-          html: 'IDs have been copied to clipboard',
-          cancelCallback: () => {},
-          cancelLabel: 'Close'
-        }).show()
-      })
-    }
-  }
-
-  
-  function findCommon_prepareResults(MAX_NUMBER_OF_RESULTS, results, numberOfSources) {
-    let position = 0
-    const upstream = []
-    const downstream = []
-
-    results.forEach((result, id) => {
-      result.upstream.forEach(partnerId => {
-        if (!upstream[partnerId]) {
-          upstream[partnerId] = (new Array(numberOfSources)).fill(false)
-        }
-        upstream[partnerId][position] = true
-      })
-
-      result.downstream.forEach(partnerId => {
-        if (!downstream[partnerId]) {
-          downstream[partnerId] = (new Array(numberOfSources)).fill(false)
-        }
-        downstream[partnerId][position] = true
-      })
-
-      position++
-    })
-
-    if (QUICK_FIND) {
-      const ids = []
-      results.forEach(el => ids.push(...el.upstream, ...el.downstream))
-      console.log(ids.join('\r\n'))
-    }
-
-    let numberOfOccurencesUpstream = []
-    Object.entries(upstream).forEach(entry => {
-      // state is boolean, but is automatically casted to 1 if true and 0 if false
-      const sum = entry[1].reduce((sum, state) => sum + state, 0)
-      numberOfOccurencesUpstream.push({ id: entry[0], sum: sum })
-    })
-    numberOfOccurencesUpstream.sort((a, b) => b.sum - a.sum)
-    
-    let numberOfOccurencesDownstream = []
-    Object.entries(downstream).forEach(entry => {
-      const sum = entry[1].reduce((sum, state) => sum + state, 0)
-      numberOfOccurencesDownstream.push({ id: entry[0], sum: sum })
-    })
-    numberOfOccurencesDownstream.sort((a, b) => b.sum - a.sum)
-
-    const tableUpstream = document.getElementById('kk-find-common-upstream-summary')
-    const tableDownstream = document.getElementById('kk-find-common-downstream-summary')
-    tableUpstream.innerHTML = findCommon_generateResultsHtml(numberOfOccurencesUpstream, upstream, 'up')
-    tableDownstream.innerHTML = findCommon_generateResultsHtml(numberOfOccurencesDownstream, downstream, 'down')
-  }
-
-
-  function findCommon_generateResultsHtml(occurences, sources, streamDirection) {
-    let html = ''
-
-    for (let i = 0; i < MAX_NUMBER_OF_RESULTS; i++) {
-      const id = occurences[i].id
-      let sourcesHtml = ''
-      sources[id].forEach((source, index) => {
-        sourcesHtml += `<td class="result-color" style="background-color: ${source ? FIND_COMMON_COLORS[index] : 'transparent'}"></td>`
-      })
-      // streamDirection in ID to differentiate ups and downs, and in class to quickly read the direction
-      html += `<tr><td id="result-id-${id}-${streamDirection}" class="result-id ${streamDirection}" data-id="${id}"><label><input type="checkbox">${id}</label></td>${sourcesHtml}</tr>`
-    }
-
-    return html
-  }
-
-  
-  function findCommon_getHtml(ids) {
-    let html = '<table id="kk-find-common-sources-table">'
-
-    html += ids.map((id, index) => {
-      return /*html*/`<tr id="kk-find-common-row-${id}">
-        <td class="kk-find-common-row-id" style="color: ${FIND_COMMON_COLORS[index]};">${id}</td>
-        <td class="kk-find-common-row-status" style="color: yellow;">Fetching data...</td>
-        <td class="kk-find-common-graphs"><div class="kk-find-common-graph-wrapper"></div></td>
-      </tr>`
-    }).join('')
-
-    html += '</table>'
-
-    html += /*html*/`
-      <div id="kk-find-common-results-wrapper-wrapper">
-        <hr />
-        <div class="kk-find-common-results-wrapper">
-          <div>Common upstream partners</div>
-          <table id="kk-find-common-upstream-summary"></table>
-        </div>
-        <div class="kk-find-common-results-wrapper">
-          <div>Common downstream partners</div>
-          <table id="kk-find-common-downstream-summary"></table>
-        </div>
-        <hr />
-        With selected:
-        <button id="kk-find-common-get-all-upstream">Get all upstream partners</button>
-        <button id="kk-find-common-get-all-downstream">Get all downstream partners</button>
-        <button id="kk-find-common-get-all">Get all partners</button><br />
-
-        <button id="kk-find-common-copy-results">Copy</button>
-        
-        <button id="kk-find-common-get-common-upstream">Get common upstream partners</button>
-        <button id="kk-find-common-get-common-downstream">Get common downstream partners</button>
-        <button id="kk-find-common-get-common">Get common partners</button>
-      </div>
-    `
-
-    return html
-  }
-
-  function findCommon_getCss() {
-    return /*css*/`
-      #kk-find-common-sources-table {
-        margin: auto;
-        margin-bottom: 15px;
-        font-size: 15px;
-      }
-
-      #kk-find-common-upstream-summary,
-      #kk-find-common-downstream-summary {
-        border-collapse: collapse;
-        margin-top: 10px;
-      }
-
-      #kk-find-common-upstream-summary .result-color,
-      #kk-find-common-downstream-summary .result-color {
-        width: 17px;
-      }
-
-      #kk-find-common-upstream-summary .result-id,
-      #kk-find-common-downstream-summary .result-id {
-        padding-right: 10px;
-      }
-
-      .kk-find-common-row-id {
-        padding: 0 20px;
-      }
-
-      #kk-find-common-results-wrapper-wrapper {
-        display: none;
-        text-align: center;
-      }
-
-      .kk-find-common-results-wrapper {
-        display: inline-block;
-        font-size: 14px;
-        font-weight: 300;
-        width: 45%;
-      }
-
-      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-all-upstream,
-      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-common-upstream,
-      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-all-downstream,
-      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-common-downstream,
-      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-all,
-      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-common {
-        width: 220px;
-      }
-
-      #kk-find-common-results-wrapper-wrapper #kk-find-common-get-all-upstream {
-        margin-left: 10px;
-      }
-
-      #kk-find-common-results-wrapper-wrapper #kk-find-common-copy-results {
-        margin: 10px 40.5px 15px 0;
-      }
-
-      .kk-find-common-graphs .kk-find-common-graph-wrapper {
-        margin-left: 10px;
-        width: 400px;
-        height: 18px;
-        line-height: 0;
-        border: 1px solid gray;
-      }
-
-      .kk-find-common-graphs .kk-find-common-graph-wrapper-background {
-        background-color: white;
-      }
-
-      .kk-find-common-graphs .kk-find-common-graph-graph {
-        display: inline-block;
-        height: 9px;
-      }
-    `
-  }
-
 
   switch (e.target.value) {
     case 'change-color-visible':
@@ -930,17 +289,21 @@ function actionsHandler(e) {
       findCommon(QUICK_FIND ? hidden : visible)
       break
 
+    case 'show-neuropils-coverage':
+      showNeuropilsCoverage(visible)
+      break
+
     case 'show-identified-only':
-      show(identified)
+      show(identified, segments)
       break
     case 'show-completed-only':
-      show(completed)
+      show(completed, segments)
       break
     case 'show-incompleted-only':
-      show(normal)
+      show(normal, segments)
       break
     case 'Show outdated-only':
-      show(outdated)
+      show(outdated, segments)
       break
 
     case 'hide-identified':
@@ -1015,19 +378,989 @@ function actionsHandler(e) {
   }
 }
 
-// as a function to delay it until the Dock is loaded
-function addPickr() {
+
+function hide(type) {
+  type.forEach(segment => {
+    const checkbox = segment.getElementsByClassName('segment-checkbox')[0]
+    if (checkbox.checked) {
+      checkbox.click()
+    }
+  })
+}
+
+function show(type, allSegments) {
+  hideAll(allSegments)
+  type.forEach(segment => {
+    const checkbox = segment.getElementsByClassName('segment-checkbox')[0]
+    if (!checkbox.checked) {
+      checkbox.click()
+    }
+  })
+}
 
 
-Dock.addCss(/*css*/`
-.pickr{position:relative;overflow:visible;transform:translateY(0)}.pickr *{box-sizing:border-box;outline:none;border:none;-webkit-appearance:none}.pickr .pcr-button{position:relative;height:2em;width:2em;padding:0.5em;cursor:pointer;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Roboto","Helvetica Neue",Arial,sans-serif;border-radius:.15em;background:url('data:image/svg+xml;utf8, <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" stroke="%2342445A" stroke-width="5px" stroke-linecap="round"><path d="M45,45L5,5"></path><path d="M45,5L5,45"></path></svg>') no-repeat center;background-size:0;transition:all 0.3s}.pickr .pcr-button::before{position:absolute;content:'';top:0;left:0;width:100%;height:100%;background:url('data:image/svg+xml;utf8, <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path fill="white" d="M1,0H2V1H1V0ZM0,1H1V2H0V1Z"/><path fill="gray" d="M0,0H1V1H0V0ZM1,1H2V2H1V1Z"/></svg>');background-size:.5em;border-radius:.15em;z-index:-1}.pickr .pcr-button::before{z-index:initial}.pickr .pcr-button::after{position:absolute;content:'';top:0;left:0;height:100%;width:100%;transition:background 0.3s;background:var(--pcr-color);border-radius:.15em}.pickr .pcr-button.clear{background-size:70%}.pickr .pcr-button.clear::before{opacity:0}.pickr .pcr-button.clear:focus{box-shadow:0 0 0 1px rgba(255,255,255,0.85),0 0 0 3px var(--pcr-color)}.pickr .pcr-button.disabled{cursor:not-allowed}.pickr *,.pcr-app *{box-sizing:border-box;outline:none;border:none;-webkit-appearance:none}.pickr input:focus,.pickr input.pcr-active,.pickr button:focus,.pickr button.pcr-active,.pcr-app input:focus,.pcr-app input.pcr-active,.pcr-app button:focus,.pcr-app button.pcr-active{box-shadow:0 0 0 1px rgba(255,255,255,0.85),0 0 0 3px var(--pcr-color)}.pickr .pcr-palette,.pickr .pcr-slider,.pcr-app .pcr-palette,.pcr-app .pcr-slider{transition:box-shadow 0.3s}.pickr .pcr-palette:focus,.pickr .pcr-slider:focus,.pcr-app .pcr-palette:focus,.pcr-app .pcr-slider:focus{box-shadow:0 0 0 1px rgba(255,255,255,0.85),0 0 0 3px rgba(0,0,0,0.25)}.pcr-app{position:fixed;display:flex;flex-direction:column;z-index:10000;border-radius:0.1em;background:#fff;opacity:0;visibility:hidden;transition:opacity 0.3s, visibility 0s 0.3s;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Roboto","Helvetica Neue",Arial,sans-serif;box-shadow:0 0.15em 1.5em 0 rgba(0,0,0,0.1),0 0 1em 0 rgba(0,0,0,0.03);left:0;top:0}.pcr-app.visible{transition:opacity 0.3s;visibility:visible;opacity:1}.pcr-app .pcr-swatches{display:flex;flex-wrap:wrap;margin-top:0.75em}.pcr-app .pcr-swatches.pcr-last{margin:0}@supports (display: grid){.pcr-app .pcr-swatches{display:grid;align-items:center;grid-template-columns:repeat(auto-fit, 1.75em)}}.pcr-app .pcr-swatches>button{font-size:1em;position:relative;width:calc(1.75em - 5px);height:calc(1.75em - 5px);border-radius:0.15em;cursor:pointer;margin:2.5px;flex-shrink:0;justify-self:center;transition:all 0.15s;overflow:hidden;background:transparent;z-index:1}.pcr-app .pcr-swatches>button::before{position:absolute;content:'';top:0;left:0;width:100%;height:100%;background:url('data:image/svg+xml;utf8, <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path fill="white" d="M1,0H2V1H1V0ZM0,1H1V2H0V1Z"/><path fill="gray" d="M0,0H1V1H0V0ZM1,1H2V2H1V1Z"/></svg>');background-size:6px;border-radius:.15em;z-index:-1}.pcr-app .pcr-swatches>button::after{content:'';position:absolute;top:0;left:0;width:100%;height:100%;background:var(--pcr-color);border:1px solid rgba(0,0,0,0.05);border-radius:0.15em;box-sizing:border-box}.pcr-app .pcr-swatches>button:hover{filter:brightness(1.05)}.pcr-app .pcr-swatches>button:not(.pcr-active){box-shadow:none}.pcr-app .pcr-interaction{display:flex;flex-wrap:wrap;align-items:center;margin:0 -0.2em 0 -0.2em}.pcr-app .pcr-interaction>*{margin:0 0.2em}.pcr-app .pcr-interaction input{letter-spacing:0.07em;font-size:0.75em;text-align:center;cursor:pointer;color:#75797e;background:#f1f3f4;border-radius:.15em;transition:all 0.15s;padding:0.45em 0.5em;margin-top:0.75em}.pcr-app .pcr-interaction input:hover{filter:brightness(0.975)}.pcr-app .pcr-interaction input:focus{box-shadow:0 0 0 1px rgba(255,255,255,0.85),0 0 0 3px rgba(66,133,244,0.75)}.pcr-app .pcr-interaction .pcr-result{color:#75797e;text-align:left;flex:1 1 8em;min-width:8em;transition:all 0.2s;border-radius:.15em;background:#f1f3f4;cursor:text}.pcr-app .pcr-interaction .pcr-result::-moz-selection{background:#4285f4;color:#fff}.pcr-app .pcr-interaction .pcr-result::selection{background:#4285f4;color:#fff}.pcr-app .pcr-interaction .pcr-type.active{color:#fff;background:#4285f4}.pcr-app .pcr-interaction .pcr-save,.pcr-app .pcr-interaction .pcr-cancel,.pcr-app .pcr-interaction .pcr-clear{color:#fff;width:auto}.pcr-app .pcr-interaction .pcr-save,.pcr-app .pcr-interaction .pcr-cancel,.pcr-app .pcr-interaction .pcr-clear{color:#fff}.pcr-app .pcr-interaction .pcr-save:hover,.pcr-app .pcr-interaction .pcr-cancel:hover,.pcr-app .pcr-interaction .pcr-clear:hover{filter:brightness(0.925)}.pcr-app .pcr-interaction .pcr-save{background:#4285f4}.pcr-app .pcr-interaction .pcr-clear,.pcr-app .pcr-interaction .pcr-cancel{background:#f44250}.pcr-app .pcr-interaction .pcr-clear:focus,.pcr-app .pcr-interaction .pcr-cancel:focus{box-shadow:0 0 0 1px rgba(255,255,255,0.85),0 0 0 3px rgba(244,66,80,0.75)}.pcr-app .pcr-selection .pcr-picker{position:absolute;height:18px;width:18px;border:2px solid #fff;border-radius:100%;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}.pcr-app .pcr-selection .pcr-color-palette,.pcr-app .pcr-selection .pcr-color-chooser,.pcr-app .pcr-selection .pcr-color-opacity{position:relative;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;display:flex;flex-direction:column;cursor:grab;cursor:-webkit-grab}.pcr-app .pcr-selection .pcr-color-palette:active,.pcr-app .pcr-selection .pcr-color-chooser:active,.pcr-app .pcr-selection .pcr-color-opacity:active{cursor:grabbing;cursor:-webkit-grabbing}.pcr-app[data-theme='nano']{width:14.25em;max-width:95vw}.pcr-app[data-theme='nano'] .pcr-swatches{margin-top:.6em;padding:0 .6em}.pcr-app[data-theme='nano'] .pcr-interaction{padding:0 .6em .6em .6em}.pcr-app[data-theme='nano'] .pcr-selection{display:grid;grid-gap:.6em;grid-template-columns:1fr 4fr;grid-template-rows:5fr auto auto;align-items:center;height:10.5em;width:100%;align-self:flex-start}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-preview{grid-area:2 / 1 / 4 / 1;height:100%;width:100%;display:flex;flex-direction:row;justify-content:center;margin-left:.6em}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-preview .pcr-last-color{display:none}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-preview .pcr-current-color{position:relative;background:var(--pcr-color);width:2em;height:2em;border-radius:50em;overflow:hidden}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-preview .pcr-current-color::before{position:absolute;content:'';top:0;left:0;width:100%;height:100%;background:url('data:image/svg+xml;utf8, <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path fill="white" d="M1,0H2V1H1V0ZM0,1H1V2H0V1Z"/><path fill="gray" d="M0,0H1V1H0V0ZM1,1H2V2H1V1Z"/></svg>');background-size:.5em;border-radius:.15em;z-index:-1}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-palette{grid-area:1 / 1 / 2 / 3;width:100%;height:100%;z-index:1}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-palette .pcr-palette{border-radius:.15em;width:100%;height:100%}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-palette .pcr-palette::before{position:absolute;content:'';top:0;left:0;width:100%;height:100%;background:url('data:image/svg+xml;utf8, <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path fill="white" d="M1,0H2V1H1V0ZM0,1H1V2H0V1Z"/><path fill="gray" d="M0,0H1V1H0V0ZM1,1H2V2H1V1Z"/></svg>');background-size:.5em;border-radius:.15em;z-index:-1}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-chooser{grid-area:2 / 2 / 2 / 2}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-opacity{grid-area:3 / 2 / 3 / 2}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-chooser,.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-opacity{height:0.5em;margin:0 .6em}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-chooser .pcr-picker,.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-opacity .pcr-picker{top:50%;transform:translateY(-50%)}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-chooser .pcr-slider,.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-opacity .pcr-slider{flex-grow:1;border-radius:50em}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-chooser .pcr-slider{background:linear-gradient(to right, red, #ff0, lime, cyan, blue, #f0f, red)}.pcr-app[data-theme='nano'] .pcr-selection .pcr-color-opacity .pcr-slider{background:linear-gradient(to right, transparent, black),url('data:image/svg+xml;utf8, <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path fill="white" d="M1,0H2V1H1V0ZM0,1H1V2H0V1Z"/><path fill="gray" d="M0,0H1V1H0V0ZM1,1H2V2H1V1Z"/></svg>');background-size:100%, 0.25em}
-`)
+function hideAll(segments) {
+  segments.forEach(segment => {
+    const checkbox = segment.getElementsByClassName('segment-checkbox')[0]
+    if (checkbox.checked) {
+      checkbox.click()
+    }
+  })
+}
+
+function openInNewTab(type) {
+  const ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
+
+  if (!ids) return
+
+  openSegmentsInNewTab(ids)
+}
 
 
-// CHANGES from original: changed "t.Pickr=e()" to "t.Pickr=this.Pickr=e()"
-/*! Pickr 1.8.2 MIT | https://github.com/Simonwep/pickr */
-!function(t,e){"object"==typeof exports&&"object"==typeof module?module.exports=e():"function"==typeof define&&define.amd?define([],e):"object"==typeof exports?exports.Pickr=e():t.Pickr=this.Pickr=e()}(self,(function(){return(()=>{"use strict";var t={d:(e,o)=>{for(var n in o)t.o(o,n)&&!t.o(e,n)&&Object.defineProperty(e,n,{enumerable:!0,get:o[n]})},o:(t,e)=>Object.prototype.hasOwnProperty.call(t,e),r:t=>{"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(t,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(t,"__esModule",{value:!0})}},e={};t.d(e,{default:()=>L});var o={};function n(t,e,o,n,i={}){e instanceof HTMLCollection||e instanceof NodeList?e=Array.from(e):Array.isArray(e)||(e=[e]),Array.isArray(o)||(o=[o]);for(const s of e)for(const e of o)s[t](e,n,{capture:!1,...i});return Array.prototype.slice.call(arguments,1)}t.r(o),t.d(o,{adjustableInputNumbers:()=>p,createElementFromString:()=>r,createFromTemplate:()=>a,eventPath:()=>l,off:()=>s,on:()=>i,resolveElement:()=>c});const i=n.bind(null,"addEventListener"),s=n.bind(null,"removeEventListener");function r(t){const e=document.createElement("div");return e.innerHTML=t.trim(),e.firstElementChild}function a(t){const e=(t,e)=>{const o=t.getAttribute(e);return t.removeAttribute(e),o},o=(t,n={})=>{const i=e(t,":obj"),s=e(t,":ref"),r=i?n[i]={}:n;s&&(n[s]=t);for(const n of Array.from(t.children)){const t=e(n,":arr"),i=o(n,t?{}:r);t&&(r[t]||(r[t]=[])).push(Object.keys(i).length?i:n)}return n};return o(r(t))}function l(t){let e=t.path||t.composedPath&&t.composedPath();if(e)return e;let o=t.target.parentElement;for(e=[t.target,o];o=o.parentElement;)e.push(o);return e.push(document,window),e}function c(t){return t instanceof Element?t:"string"==typeof t?t.split(/>>/g).reduce(((t,e,o,n)=>(t=t.querySelector(e),o<n.length-1?t.shadowRoot:t)),document):null}function p(t,e=(t=>t)){function o(o){const n=[.001,.01,.1][Number(o.shiftKey||2*o.ctrlKey)]*(o.deltaY<0?1:-1);let i=0,s=t.selectionStart;t.value=t.value.replace(/[\d.]+/g,((t,o)=>o<=s&&o+t.length>=s?(s=o,e(Number(t),n,i)):(i++,t))),t.focus(),t.setSelectionRange(s,s),o.preventDefault(),t.dispatchEvent(new Event("input"))}i(t,"focus",(()=>i(window,"wheel",o,{passive:!1}))),i(t,"blur",(()=>s(window,"wheel",o)))}const{min:u,max:h,floor:d,round:m}=Math;function f(t,e,o){e/=100,o/=100;const n=d(t=t/360*6),i=t-n,s=o*(1-e),r=o*(1-i*e),a=o*(1-(1-i)*e),l=n%6;return[255*[o,r,s,s,a,o][l],255*[a,o,o,r,s,s][l],255*[s,s,a,o,o,r][l]]}function v(t,e,o){const n=(2-(e/=100))*(o/=100)/2;return 0!==n&&(e=1===n?0:n<.5?e*o/(2*n):e*o/(2-2*n)),[t,100*e,100*n]}function b(t,e,o){const n=u(t/=255,e/=255,o/=255),i=h(t,e,o),s=i-n;let r,a;if(0===s)r=a=0;else{a=s/i;const n=((i-t)/6+s/2)/s,l=((i-e)/6+s/2)/s,c=((i-o)/6+s/2)/s;t===i?r=c-l:e===i?r=1/3+n-c:o===i&&(r=2/3+l-n),r<0?r+=1:r>1&&(r-=1)}return[360*r,100*a,100*i]}function y(t,e,o,n){e/=100,o/=100;return[...b(255*(1-u(1,(t/=100)*(1-(n/=100))+n)),255*(1-u(1,e*(1-n)+n)),255*(1-u(1,o*(1-n)+n)))]}function g(t,e,o){e/=100;const n=2*(e*=(o/=100)<.5?o:1-o)/(o+e)*100,i=100*(o+e);return[t,isNaN(n)?0:n,i]}function _(t){return b(...t.match(/.{2}/g).map((t=>parseInt(t,16))))}function w(t){t=t.match(/^[a-zA-Z]+$/)?function(t){if("black"===t.toLowerCase())return"#000";const e=document.createElement("canvas").getContext("2d");return e.fillStyle=t,"#000"===e.fillStyle?null:e.fillStyle}(t):t;const e={cmyk:/^cmyk[\D]+([\d.]+)[\D]+([\d.]+)[\D]+([\d.]+)[\D]+([\d.]+)/i,rgba:/^((rgba)|rgb)[\D]+([\d.]+)[\D]+([\d.]+)[\D]+([\d.]+)[\D]*?([\d.]+|$)/i,hsla:/^((hsla)|hsl)[\D]+([\d.]+)[\D]+([\d.]+)[\D]+([\d.]+)[\D]*?([\d.]+|$)/i,hsva:/^((hsva)|hsv)[\D]+([\d.]+)[\D]+([\d.]+)[\D]+([\d.]+)[\D]*?([\d.]+|$)/i,hexa:/^#?(([\dA-Fa-f]{3,4})|([\dA-Fa-f]{6})|([\dA-Fa-f]{8}))$/i},o=t=>t.map((t=>/^(|\d+)\.\d+|\d+$/.test(t)?Number(t):void 0));let n;t:for(const i in e){if(!(n=e[i].exec(t)))continue;const s=t=>!!n[2]==("number"==typeof t);switch(i){case"cmyk":{const[,t,e,s,r]=o(n);if(t>100||e>100||s>100||r>100)break t;return{values:y(t,e,s,r),type:i}}case"rgba":{const[,,,t,e,r,a]=o(n);if(t>255||e>255||r>255||a<0||a>1||!s(a))break t;return{values:[...b(t,e,r),a],a,type:i}}case"hexa":{let[,t]=n;4!==t.length&&3!==t.length||(t=t.split("").map((t=>t+t)).join(""));const e=t.substring(0,6);let o=t.substring(6);return o=o?parseInt(o,16)/255:void 0,{values:[..._(e),o],a:o,type:i}}case"hsla":{const[,,,t,e,r,a]=o(n);if(t>360||e>100||r>100||a<0||a>1||!s(a))break t;return{values:[...g(t,e,r),a],a,type:i}}case"hsva":{const[,,,t,e,r,a]=o(n);if(t>360||e>100||r>100||a<0||a>1||!s(a))break t;return{values:[t,e,r,a],a,type:i}}}}return{values:null,type:null}}function A(t=0,e=0,o=0,n=1){const i=(t,e)=>(o=-1)=>e(~o?t.map((t=>Number(t.toFixed(o)))):t),s={h:t,s:e,v:o,a:n,toHSVA(){const t=[s.h,s.s,s.v,s.a];return t.toString=i(t,(t=>`hsva(${t[0]}, ${t[1]}%, ${t[2]}%, ${s.a})`)),t},toHSLA(){const t=[...v(s.h,s.s,s.v),s.a];return t.toString=i(t,(t=>`hsla(${t[0]}, ${t[1]}%, ${t[2]}%, ${s.a})`)),t},toRGBA(){const t=[...f(s.h,s.s,s.v),s.a];return t.toString=i(t,(t=>`rgba(${t[0]}, ${t[1]}, ${t[2]}, ${s.a})`)),t},toCMYK(){const t=function(t,e,o){const n=f(t,e,o),i=n[0]/255,s=n[1]/255,r=n[2]/255,a=u(1-i,1-s,1-r);return[100*(1===a?0:(1-i-a)/(1-a)),100*(1===a?0:(1-s-a)/(1-a)),100*(1===a?0:(1-r-a)/(1-a)),100*a]}(s.h,s.s,s.v);return t.toString=i(t,(t=>`cmyk(${t[0]}%, ${t[1]}%, ${t[2]}%, ${t[3]}%)`)),t},toHEXA(){const t=function(t,e,o){return f(t,e,o).map((t=>m(t).toString(16).padStart(2,"0")))}(s.h,s.s,s.v),e=s.a>=1?"":Number((255*s.a).toFixed(0)).toString(16).toUpperCase().padStart(2,"0");return e&&t.push(e),t.toString=()=>`#${t.join("").toUpperCase()}`,t},clone:()=>A(s.h,s.s,s.v,s.a)};return s}const C=t=>Math.max(Math.min(t,1),0);function $(t){const e={options:Object.assign({lock:null,onchange:()=>0,onstop:()=>0},t),_keyboard(t){const{options:o}=e,{type:n,key:i}=t;if(document.activeElement===o.wrapper){const{lock:o}=e.options,s="ArrowUp"===i,r="ArrowRight"===i,a="ArrowDown"===i,l="ArrowLeft"===i;if("keydown"===n&&(s||r||a||l)){let n=0,i=0;"v"===o?n=s||r?1:-1:"h"===o?n=s||r?-1:1:(i=s?-1:a?1:0,n=l?-1:r?1:0),e.update(C(e.cache.x+.01*n),C(e.cache.y+.01*i)),t.preventDefault()}else i.startsWith("Arrow")&&(e.options.onstop(),t.preventDefault())}},_tapstart(t){i(document,["mouseup","touchend","touchcancel"],e._tapstop),i(document,["mousemove","touchmove"],e._tapmove),t.cancelable&&t.preventDefault(),e._tapmove(t)},_tapmove(t){const{options:o,cache:n}=e,{lock:i,element:s,wrapper:r}=o,a=r.getBoundingClientRect();let l=0,c=0;if(t){const e=t&&t.touches&&t.touches[0];l=t?(e||t).clientX:0,c=t?(e||t).clientY:0,l<a.left?l=a.left:l>a.left+a.width&&(l=a.left+a.width),c<a.top?c=a.top:c>a.top+a.height&&(c=a.top+a.height),l-=a.left,c-=a.top}else n&&(l=n.x*a.width,c=n.y*a.height);"h"!==i&&(s.style.left=`calc(${l/a.width*100}% - ${s.offsetWidth/2}px)`),"v"!==i&&(s.style.top=`calc(${c/a.height*100}% - ${s.offsetHeight/2}px)`),e.cache={x:l/a.width,y:c/a.height};const p=C(l/a.width),u=C(c/a.height);switch(i){case"v":return o.onchange(p);case"h":return o.onchange(u);default:return o.onchange(p,u)}},_tapstop(){e.options.onstop(),s(document,["mouseup","touchend","touchcancel"],e._tapstop),s(document,["mousemove","touchmove"],e._tapmove)},trigger(){e._tapmove()},update(t=0,o=0){const{left:n,top:i,width:s,height:r}=e.options.wrapper.getBoundingClientRect();"h"===e.options.lock&&(o=t),e._tapmove({clientX:n+s*t,clientY:i+r*o})},destroy(){const{options:t,_tapstart:o,_keyboard:n}=e;s(document,["keydown","keyup"],n),s([t.wrapper,t.element],"mousedown",o),s([t.wrapper,t.element],"touchstart",o,{passive:!1})}},{options:o,_tapstart:n,_keyboard:r}=e;return i([o.wrapper,o.element],"mousedown",n),i([o.wrapper,o.element],"touchstart",n,{passive:!1}),i(document,["keydown","keyup"],r),e}function k(t={}){t=Object.assign({onchange:()=>0,className:"",elements:[]},t);const e=i(t.elements,"click",(e=>{t.elements.forEach((o=>o.classList[e.target===o?"add":"remove"](t.className))),t.onchange(e),e.stopPropagation()}));return{destroy:()=>s(...e)}}const S={variantFlipOrder:{start:"sme",middle:"mse",end:"ems"},positionFlipOrder:{top:"tbrl",right:"rltb",bottom:"btrl",left:"lrbt"},position:"bottom",margin:8},O=(t,e,o)=>{const{container:n,margin:i,position:s,variantFlipOrder:r,positionFlipOrder:a}={container:document.documentElement.getBoundingClientRect(),...S,...o},{left:l,top:c}=e.style;e.style.left="0",e.style.top="0";const p=t.getBoundingClientRect(),u=e.getBoundingClientRect(),h={t:p.top-u.height-i,b:p.bottom+i,r:p.right+i,l:p.left-u.width-i},d={vs:p.left,vm:p.left+p.width/2+-u.width/2,ve:p.left+p.width-u.width,hs:p.top,hm:p.bottom-p.height/2-u.height/2,he:p.bottom-u.height},[m,f="middle"]=s.split("-"),v=a[m],b=r[f],{top:y,left:g,bottom:_,right:w}=n;for(const t of v){const o="t"===t||"b"===t,n=h[t],[i,s]=o?["top","left"]:["left","top"],[r,a]=o?[u.height,u.width]:[u.width,u.height],[l,c]=o?[_,w]:[w,_],[p,m]=o?[y,g]:[g,y];if(!(n<p||n+r>l))for(const r of b){const l=d[(o?"v":"h")+r];if(!(l<m||l+a>c))return e.style[s]=l-u[s]+"px",e.style[i]=n-u[i]+"px",t+r}}return e.style.left=l,e.style.top=c,null};function E(t,e,o){return e in t?Object.defineProperty(t,e,{value:o,enumerable:!0,configurable:!0,writable:!0}):t[e]=o,t}class L{constructor(t){E(this,"_initializingActive",!0),E(this,"_recalc",!0),E(this,"_nanopop",null),E(this,"_root",null),E(this,"_color",A()),E(this,"_lastColor",A()),E(this,"_swatchColors",[]),E(this,"_setupAnimationFrame",null),E(this,"_eventListener",{init:[],save:[],hide:[],show:[],clear:[],change:[],changestop:[],cancel:[],swatchselect:[]}),this.options=t=Object.assign({...L.DEFAULT_OPTIONS},t);const{swatches:e,components:o,theme:n,sliders:i,lockOpacity:s,padding:r}=t;["nano","monolith"].includes(n)&&!i&&(t.sliders="h"),o.interaction||(o.interaction={});const{preview:a,opacity:l,hue:c,palette:p}=o;o.opacity=!s&&l,o.palette=p||a||l||c,this._preBuild(),this._buildComponents(),this._bindEvents(),this._finalBuild(),e&&e.length&&e.forEach((t=>this.addSwatch(t)));const{button:u,app:h}=this._root;this._nanopop=((t,e,o)=>{const n="object"!=typeof t||t instanceof HTMLElement?{reference:t,popper:e,...o}:t;return{update(t=n){const{reference:e,popper:o}=Object.assign(n,t);if(!o||!e)throw new Error("Popper- or reference-element missing.");return O(e,o,n)}}})(u,h,{margin:r}),u.setAttribute("role","button"),u.setAttribute("aria-label",this._t("btn:toggle"));const d=this;this._setupAnimationFrame=requestAnimationFrame((function e(){if(!h.offsetWidth)return requestAnimationFrame(e);d.setColor(t.default),d._rePositioningPicker(),t.defaultRepresentation&&(d._representation=t.defaultRepresentation,d.setColorRepresentation(d._representation)),t.showAlways&&d.show(),d._initializingActive=!1,d._emit("init")}))}_preBuild(){const{options:t}=this;for(const e of["el","container"])t[e]=c(t[e]);this._root=(t=>{const{components:e,useAsButton:o,inline:n,appClass:i,theme:s,lockOpacity:r}=t.options,l=t=>t?"":'style="display:none" hidden',c=e=>t._t(e),p=a(`\n      <div :ref="root" class="pickr">\n\n        ${o?"":'<button type="button" :ref="button" class="pcr-button"></button>'}\n\n        <div :ref="app" class="pcr-app ${i||""}" data-theme="${s}" ${n?'style="position: unset"':""} aria-label="${c("ui:dialog")}" role="window">\n          <div class="pcr-selection" ${l(e.palette)}>\n            <div :obj="preview" class="pcr-color-preview" ${l(e.preview)}>\n              <button type="button" :ref="lastColor" class="pcr-last-color" aria-label="${c("btn:last-color")}"></button>\n              <div :ref="currentColor" class="pcr-current-color"></div>\n            </div>\n\n            <div :obj="palette" class="pcr-color-palette">\n              <div :ref="picker" class="pcr-picker"></div>\n              <div :ref="palette" class="pcr-palette" tabindex="0" aria-label="${c("aria:palette")}" role="listbox"></div>\n            </div>\n\n            <div :obj="hue" class="pcr-color-chooser" ${l(e.hue)}>\n              <div :ref="picker" class="pcr-picker"></div>\n              <div :ref="slider" class="pcr-hue pcr-slider" tabindex="0" aria-label="${c("aria:hue")}" role="slider"></div>\n            </div>\n\n            <div :obj="opacity" class="pcr-color-opacity" ${l(e.opacity)}>\n              <div :ref="picker" class="pcr-picker"></div>\n              <div :ref="slider" class="pcr-opacity pcr-slider" tabindex="0" aria-label="${c("aria:opacity")}" role="slider"></div>\n            </div>\n          </div>\n\n          <div class="pcr-swatches ${e.palette?"":"pcr-last"}" :ref="swatches"></div>\n\n          <div :obj="interaction" class="pcr-interaction" ${l(Object.keys(e.interaction).length)}>\n            <input :ref="result" class="pcr-result" type="text" spellcheck="false" ${l(e.interaction.input)} aria-label="${c("aria:input")}">\n\n            <input :arr="options" class="pcr-type" data-type="HEXA" value="${r?"HEX":"HEXA"}" type="button" ${l(e.interaction.hex)}>\n            <input :arr="options" class="pcr-type" data-type="RGBA" value="${r?"RGB":"RGBA"}" type="button" ${l(e.interaction.rgba)}>\n            <input :arr="options" class="pcr-type" data-type="HSLA" value="${r?"HSL":"HSLA"}" type="button" ${l(e.interaction.hsla)}>\n            <input :arr="options" class="pcr-type" data-type="HSVA" value="${r?"HSV":"HSVA"}" type="button" ${l(e.interaction.hsva)}>\n            <input :arr="options" class="pcr-type" data-type="CMYK" value="CMYK" type="button" ${l(e.interaction.cmyk)}>\n\n            <input :ref="save" class="pcr-save" value="${c("btn:save")}" type="button" ${l(e.interaction.save)} aria-label="${c("aria:btn:save")}">\n            <input :ref="cancel" class="pcr-cancel" value="${c("btn:cancel")}" type="button" ${l(e.interaction.cancel)} aria-label="${c("aria:btn:cancel")}">\n            <input :ref="clear" class="pcr-clear" value="${c("btn:clear")}" type="button" ${l(e.interaction.clear)} aria-label="${c("aria:btn:clear")}">\n          </div>\n        </div>\n      </div>\n    `),u=p.interaction;return u.options.find((t=>!t.hidden&&!t.classList.add("active"))),u.type=()=>u.options.find((t=>t.classList.contains("active"))),p})(this),t.useAsButton&&(this._root.button=t.el),t.container.appendChild(this._root.root)}_finalBuild(){const t=this.options,e=this._root;if(t.container.removeChild(e.root),t.inline){const o=t.el.parentElement;t.el.nextSibling?o.insertBefore(e.app,t.el.nextSibling):o.appendChild(e.app)}else t.container.appendChild(e.app);t.useAsButton?t.inline&&t.el.remove():t.el.parentNode.replaceChild(e.root,t.el),t.disabled&&this.disable(),t.comparison||(e.button.style.transition="none",t.useAsButton||(e.preview.lastColor.style.transition="none")),this.hide()}_buildComponents(){const t=this,e=this.options.components,o=(t.options.sliders||"v").repeat(2),[n,i]=o.match(/^[vh]+$/g)?o:[],s=()=>this._color||(this._color=this._lastColor.clone()),r={palette:$({element:t._root.palette.picker,wrapper:t._root.palette.palette,onstop:()=>t._emit("changestop","slider",t),onchange(o,n){if(!e.palette)return;const i=s(),{_root:r,options:a}=t,{lastColor:l,currentColor:c}=r.preview;t._recalc&&(i.s=100*o,i.v=100-100*n,i.v<0&&(i.v=0),t._updateOutput("slider"));const p=i.toRGBA().toString(0);this.element.style.background=p,this.wrapper.style.background=`\n                        linear-gradient(to top, rgba(0, 0, 0, ${i.a}), transparent),\n                        linear-gradient(to left, hsla(${i.h}, 100%, 50%, ${i.a}), rgba(255, 255, 255, ${i.a}))\n                    `,a.comparison?a.useAsButton||t._lastColor||l.style.setProperty("--pcr-color",p):(r.button.style.setProperty("--pcr-color",p),r.button.classList.remove("clear"));const u=i.toHEXA().toString();for(const{el:e,color:o}of t._swatchColors)e.classList[u===o.toHEXA().toString()?"add":"remove"]("pcr-active");c.style.setProperty("--pcr-color",p)}}),hue:$({lock:"v"===i?"h":"v",element:t._root.hue.picker,wrapper:t._root.hue.slider,onstop:()=>t._emit("changestop","slider",t),onchange(o){if(!e.hue||!e.palette)return;const n=s();t._recalc&&(n.h=360*o),this.element.style.backgroundColor=`hsl(${n.h}, 100%, 50%)`,r.palette.trigger()}}),opacity:$({lock:"v"===n?"h":"v",element:t._root.opacity.picker,wrapper:t._root.opacity.slider,onstop:()=>t._emit("changestop","slider",t),onchange(o){if(!e.opacity||!e.palette)return;const n=s();t._recalc&&(n.a=Math.round(100*o)/100),this.element.style.background=`rgba(0, 0, 0, ${n.a})`,r.palette.trigger()}}),selectable:k({elements:t._root.interaction.options,className:"active",onchange(e){t._representation=e.target.getAttribute("data-type").toUpperCase(),t._recalc&&t._updateOutput("swatch")}})};this._components=r}_bindEvents(){const{_root:t,options:e}=this,o=[i(t.interaction.clear,"click",(()=>this._clearColor())),i([t.interaction.cancel,t.preview.lastColor],"click",(()=>{this.setHSVA(...(this._lastColor||this._color).toHSVA(),!0),this._emit("cancel")})),i(t.interaction.save,"click",(()=>{!this.applyColor()&&!e.showAlways&&this.hide()})),i(t.interaction.result,["keyup","input"],(t=>{this.setColor(t.target.value,!0)&&!this._initializingActive&&(this._emit("change",this._color,"input",this),this._emit("changestop","input",this)),t.stopImmediatePropagation()})),i(t.interaction.result,["focus","blur"],(t=>{this._recalc="blur"===t.type,this._recalc&&this._updateOutput(null)})),i([t.palette.palette,t.palette.picker,t.hue.slider,t.hue.picker,t.opacity.slider,t.opacity.picker],["mousedown","touchstart"],(()=>this._recalc=!0),{passive:!0})];if(!e.showAlways){const n=e.closeWithKey;o.push(i(t.button,"click",(()=>this.isOpen()?this.hide():this.show())),i(document,"keyup",(t=>this.isOpen()&&(t.key===n||t.code===n)&&this.hide())),i(document,["touchstart","mousedown"],(e=>{this.isOpen()&&!l(e).some((e=>e===t.app||e===t.button))&&this.hide()}),{capture:!0}))}if(e.adjustableNumbers){const e={rgba:[255,255,255,1],hsva:[360,100,100,1],hsla:[360,100,100,1],cmyk:[100,100,100,100]};p(t.interaction.result,((t,o,n)=>{const i=e[this.getColorRepresentation().toLowerCase()];if(i){const e=i[n],s=t+(e>=100?1e3*o:o);return s<=0?0:Number((s<e?s:e).toPrecision(3))}return t}))}if(e.autoReposition&&!e.inline){let t=null;const n=this;o.push(i(window,["scroll","resize"],(()=>{n.isOpen()&&(e.closeOnScroll&&n.hide(),null===t?(t=setTimeout((()=>t=null),100),requestAnimationFrame((function e(){n._rePositioningPicker(),null!==t&&requestAnimationFrame(e)}))):(clearTimeout(t),t=setTimeout((()=>t=null),100)))}),{capture:!0}))}this._eventBindings=o}_rePositioningPicker(){const{options:t}=this;if(!t.inline){if(!this._nanopop.update({container:document.body.getBoundingClientRect(),position:t.position})){const t=this._root.app,e=t.getBoundingClientRect();t.style.top=(window.innerHeight-e.height)/2+"px",t.style.left=(window.innerWidth-e.width)/2+"px"}}}_updateOutput(t){const{_root:e,_color:o,options:n}=this;if(e.interaction.type()){const t=`to${e.interaction.type().getAttribute("data-type")}`;e.interaction.result.value="function"==typeof o[t]?o[t]().toString(n.outputPrecision):""}!this._initializingActive&&this._recalc&&this._emit("change",o,t,this)}_clearColor(t=!1){const{_root:e,options:o}=this;o.useAsButton||e.button.style.setProperty("--pcr-color","rgba(0, 0, 0, 0.15)"),e.button.classList.add("clear"),o.showAlways||this.hide(),this._lastColor=null,this._initializingActive||t||(this._emit("save",null),this._emit("clear"))}_parseLocalColor(t){const{values:e,type:o,a:n}=w(t),{lockOpacity:i}=this.options,s=void 0!==n&&1!==n;return e&&3===e.length&&(e[3]=void 0),{values:!e||i&&s?null:e,type:o}}_t(t){return this.options.i18n[t]||L.I18N_DEFAULTS[t]}_emit(t,...e){this._eventListener[t].forEach((t=>t(...e,this)))}on(t,e){return this._eventListener[t].push(e),this}off(t,e){const o=this._eventListener[t]||[],n=o.indexOf(e);return~n&&o.splice(n,1),this}addSwatch(t){const{values:e}=this._parseLocalColor(t);if(e){const{_swatchColors:t,_root:o}=this,n=A(...e),s=r(`<button type="button" style="--pcr-color: ${n.toRGBA().toString(0)}" aria-label="${this._t("btn:swatch")}"/>`);return o.swatches.appendChild(s),t.push({el:s,color:n}),this._eventBindings.push(i(s,"click",(()=>{this.setHSVA(...n.toHSVA(),!0),this._emit("swatchselect",n),this._emit("change",n,"swatch",this)}))),!0}return!1}removeSwatch(t){const e=this._swatchColors[t];if(e){const{el:o}=e;return this._root.swatches.removeChild(o),this._swatchColors.splice(t,1),!0}return!1}applyColor(t=!1){const{preview:e,button:o}=this._root,n=this._color.toRGBA().toString(0);return e.lastColor.style.setProperty("--pcr-color",n),this.options.useAsButton||o.style.setProperty("--pcr-color",n),o.classList.remove("clear"),this._lastColor=this._color.clone(),this._initializingActive||t||this._emit("save",this._color),this}destroy(){cancelAnimationFrame(this._setupAnimationFrame),this._eventBindings.forEach((t=>s(...t))),Object.keys(this._components).forEach((t=>this._components[t].destroy()))}destroyAndRemove(){this.destroy();const{root:t,app:e}=this._root;t.parentElement&&t.parentElement.removeChild(t),e.parentElement.removeChild(e),Object.keys(this).forEach((t=>this[t]=null))}hide(){return!!this.isOpen()&&(this._root.app.classList.remove("visible"),this._emit("hide"),!0)}show(){return!this.options.disabled&&!this.isOpen()&&(this._root.app.classList.add("visible"),this._rePositioningPicker(),this._emit("show",this._color),this)}isOpen(){return this._root.app.classList.contains("visible")}setHSVA(t=360,e=0,o=0,n=1,i=!1){const s=this._recalc;if(this._recalc=!1,t<0||t>360||e<0||e>100||o<0||o>100||n<0||n>1)return!1;this._color=A(t,e,o,n);const{hue:r,opacity:a,palette:l}=this._components;return r.update(t/360),a.update(n),l.update(e/100,1-o/100),i||this.applyColor(),s&&this._updateOutput(),this._recalc=s,!0}setColor(t,e=!1){if(null===t)return this._clearColor(e),!0;const{values:o,type:n}=this._parseLocalColor(t);if(o){const t=n.toUpperCase(),{options:i}=this._root.interaction,s=i.find((e=>e.getAttribute("data-type")===t));if(s&&!s.hidden)for(const t of i)t.classList[t===s?"add":"remove"]("active");return!!this.setHSVA(...o,e)&&this.setColorRepresentation(t)}return!1}setColorRepresentation(t){return t=t.toUpperCase(),!!this._root.interaction.options.find((e=>e.getAttribute("data-type").startsWith(t)&&!e.click()))}getColorRepresentation(){return this._representation}getColor(){return this._color}getSelectedColor(){return this._lastColor}getRoot(){return this._root}disable(){return this.hide(),this.options.disabled=!0,this._root.button.classList.add("disabled"),this}enable(){return this.options.disabled=!1,this._root.button.classList.remove("disabled"),this}}return E(L,"utils",o),E(L,"version","1.8.2"),E(L,"I18N_DEFAULTS",{"ui:dialog":"color picker dialog","btn:toggle":"toggle color picker dialog","btn:swatch":"color swatch","btn:last-color":"use previous color","btn:save":"Save","btn:cancel":"Cancel","btn:clear":"Clear","aria:btn:save":"save and close","aria:btn:cancel":"cancel and close","aria:btn:clear":"clear and close","aria:input":"color input field","aria:palette":"color selection area","aria:hue":"hue selection slider","aria:opacity":"selection slider"}),E(L,"DEFAULT_OPTIONS",{appClass:null,theme:"classic",useAsButton:!1,padding:8,disabled:!1,comparison:!0,closeOnScroll:!1,outputPrecision:0,lockOpacity:!1,autoReposition:!0,container:"body",components:{interaction:{}},i18n:{},swatches:null,inline:!1,sliders:null,default:"#42445a",defaultRepresentation:null,position:"bottom-middle",adjustableNumbers:!0,showAlways:!1,closeWithKey:"Escape"}),E(L,"create",(t=>new L(t))),e=e.default})()}));
-//# sourceMappingURL=pickr.min.js.map
+function openSegmentsInNewTab(ids) {
+
+  function prepareState(ids) {
+    const state = viewer.saver.pull()
+
+    state.state.layers.forEach(layer => {
+      if (layer.type !== 'segmentation_with_graph') return
+
+      layer.segments = ids
+      layer.hiddenSegments = []
+    })
+
+    return state
+  }
+
+  function addToLS(state) {
+    const stateId = Dock.getRandomHexString()
+    const stateKey = 'neuroglancerSaveState_v2'
+    const lsName = stateKey + '-' + stateId
+    
+    // Source: neuroglancer/save_state/savet_state.ts -> SaveState -> robustSet()
+    while (true) {
+      try {
+        localStorage.setItem(lsName, JSON.stringify(state))
+        let stateManager = localStorage.getItem(stateKey)
+        if (stateManager) {
+          stateManager = JSON.parse(stateManager)
+          stateManager.push(stateId)
+          localStorage.setItem(stateKey, JSON.stringify(stateManager))
+        }
+        break
+      }
+      catch (e) {
+        const manager = JSON.parse(localStorage.getItem(stateKey))
+        if (!manager.length) throw e
+
+        const targets = manager.splice(0, 1);
+        const serializedManager = JSON.stringify(manager)
+        localStorage.setItem(stateKey, serializedManager)
+        targets.forEach(key => localStorage.removeItem(`${stateKey}-${key}`))
+      }
+    }
+
+    return stateId
+  }
+
+  function openInNewTab(stateId) {
+    const url = new URL(unsafeWindow.location.href)
+
+    unsafeWindow.open(url.origin + '/?local_id=' + stateId, '_blank')
+  }
+
+  const newState = prepareState(ids)
+  const stateId = addToLS(newState)
+  openInNewTab(stateId)
+}
+
+function remove(type) {
+  type.forEach(segment => segment.getElementsByClassName('segment-button')[0].click())
+}
+
+function copy(type) {
+  const ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
+
+  navigator.clipboard.writeText(ids.join())
+}
+
+function changeColor(type) {
+  const colorSelectors = type.map(segment => segment.getElementsByClassName('segment-color-selector')[0])
+  const previousColors = colorSelectors.map(selector => selector.value)
+  let pickr
+
+  Dock.dialog({
+    id: 'kk-change-color-dialog',
+    html: '<input id="kk-change-color-selector" />',
+    okCallback: okCallback,
+    okLabel: 'Change',
+    cancelCallback: () => {},
+    cancelLabel: 'Cancel',
+    afterCreateCallback: afterCreateCallback,
+    width: 228,
+    destroyAfterClosing: true
+  }).show()
+
+  function okCallback() {
+    const newColorArray = pickr.getColor().toRGBA()
+    let newColor = '#'
+    
+    for (let i = 0; i <= 2; i++) {
+      let colorComponent = Math.round(newColorArray[i]).toString(16)
+      if (colorComponent.length < 2) {
+        colorComponent = '0' + colorComponent
+      }
+      newColor += colorComponent
+    }
+
+    colorSelectors.forEach(selector => {
+      selector.value = newColor
+      const event = new Event('change')
+      selector.dispatchEvent(event)
+    })
+
+    viewer.layerManager.layersChanged.dispatch()
+  }
+
+  function afterCreateCallback() {
+    pickr = Pickr.create({
+      el: '#kk-change-color-selector',
+      theme: 'nano',
+      showAlways: true,
+      inline: true,
+      default: previousColors[0],
+      defaultRepresentation: 'HEX',
+      position: 'top-middle',
+      components: {
+        palette: false,
+        preview: true,
+        hue: true,
+        interaction: {
+          input: true
+        }
+      }
+    })
+    document.getElementsByClassName('pickr')[0].style.display = 'none'
+  }
+}
+
+const findCommon = (type) => {
+  let ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
+  findCommon.idsLength = ids.length
+  
+  if (!ids || !findCommon.idsLength) return console.error('No segments selected')
+
+  findCommon.numberOfSources = Math.min(ids.length, MAX_NUMBER_OF_SOURCES)
+  ids = ids.slice(0, MAX_NUMBER_OF_SOURCES)
+
+  Dock.dialog({
+    id: 'kk-find-common-dialog',
+    html: findCommon_getHtml(ids),
+    css: findCommon_getCss(),
+    okCallback: () => {},
+    okLabel: 'Close',
+    width: 810,
+    afterCreateCallback: findCommon_addEventListeners,
+    destroyAfterClosing: true
+  }).show()
+
+  ids.forEach(id => {
+    getConnectivity(id, findCommon.onload, findCommon.onreadystatechange)
+  })
+}
 
 
+findCommon.finishedCounter = 0
+findCommon.results = new Map()
+
+
+findCommon.onload = (res, id, direction) => {
+  const statusColumn = document.querySelector(`#kk-find-common-row-${id} .kk-find-common-row-status`)
+
+  try {
+    res = JSON.parse(res.responseText).response
+  }
+  catch {
+    statusColumn.textContent = 'Error'
+    statusColumn.style.color = '#FF0000'
+  }
+  if (!res) return
+
+  findCommon.results.set(id, {
+    upstream: filterResults(res.incoming_table, 'Upstream Partner ID'),
+    downstream: filterResults(res.outgoing_table, 'Downstream Partner ID')
+  })
+
+  statusColumn.textContent = 'Success'
+  statusColumn.style.color = '#00FF00'
+}
+
+
+findCommon.onreadystatechange = (res, id, direction) => {
+  if (res && res.readyState === 4) {
+    findCommon.finishedCounter++
+  }
+
+  if (findCommon.finishedCounter === findCommon.idsLength) {
+    document.getElementById('kk-find-common-results-wrapper-wrapper').style.display = 'block'
+  // without setTimeout onreadystatechange is called before last setting of results in the onload
+    setTimeout(() => {
+      prepareWideFieldResults(MAX_NUMBER_OF_RESULTS, findCommon.results, findCommon.numberOfSources)
+      findCommon.finishedCounter = 0
+      findCommon.results = new Map()
+    }, 0)
+  }
+}
+
+
+
+
+
+function findCommon_getHtml(ids) {
+  let html = /*html*/`
+    <table id="kk-find-common-sources-table">
+      ${ids.map((id, index) => `
+        <tr id="kk-find-common-row-${id}">
+          <td class="kk-find-common-row-id" style="color: ${FIND_COMMON_COLORS[index]};">${id}</td>
+          <td class="kk-find-common-row-status" style="color: yellow;">Fetching data...</td>
+        </tr>
+      `).join('')}
+    </table>
+
+    <div id="kk-find-common-results-wrapper-wrapper">
+      <hr />
+      <div class="kk-find-common-results-wrapper">
+        <div>Common upstream partners</div>
+        <table id="kk-find-common-upstream-summary"></table>
+      </div>
+      <div class="kk-find-common-results-wrapper">
+        <div>Common downstream partners</div>
+        <table id="kk-find-common-downstream-summary"></table>
+      </div>
+      <hr />
+      With selected:
+      <button id="kk-find-common-get-all-upstream">Get all upstream partners</button>
+      <button id="kk-find-common-get-all-downstream">Get all downstream partners</button>
+      <button id="kk-find-common-get-all">Get all partners</button><br />
+
+      <button id="kk-find-common-copy-results">Copy</button>
+      <button id="kk-find-common-get-common-upstream">Get common upstream partners</button>
+      <button id="kk-find-common-get-common-downstream">Get common downstream partners</button>
+      <button id="kk-find-common-get-common">Get common partners</button>
+    </div>
+  `
+
+  return html
+}
+
+
+function findCommon_getCss() {
+  return /*css*/`
+    #kk-find-common-sources-table {
+      margin: auto;
+      margin-bottom: 15px;
+      font-size: 15px;
+    }
+
+    #kk-find-common-upstream-summary,
+    #kk-find-common-downstream-summary {
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    #kk-find-common-upstream-summary .result-color,
+    #kk-find-common-downstream-summary .result-color {
+      width: 17px;
+    }
+
+    #kk-find-common-upstream-summary .result-id,
+    #kk-find-common-downstream-summary .result-id {
+      padding-right: 10px;
+    }
+
+    .kk-find-common-row-id {
+      padding: 0 20px;
+    }
+
+    #kk-find-common-results-wrapper-wrapper {
+      display: none;
+      text-align: center;
+    }
+
+    .kk-find-common-results-wrapper {
+      display: inline-block;
+      font-size: 14px;
+      font-weight: 300;
+      width: 45%;
+    }
+
+    #kk-find-common-results-wrapper-wrapper #kk-find-common-get-all-upstream,
+    #kk-find-common-results-wrapper-wrapper #kk-find-common-get-common-upstream,
+    #kk-find-common-results-wrapper-wrapper #kk-find-common-get-all-downstream,
+    #kk-find-common-results-wrapper-wrapper #kk-find-common-get-common-downstream,
+    #kk-find-common-results-wrapper-wrapper #kk-find-common-get-all,
+    #kk-find-common-results-wrapper-wrapper #kk-find-common-get-common {
+      width: 220px;
+    }
+
+    #kk-find-common-results-wrapper-wrapper #kk-find-common-get-all-upstream {
+      margin-left: 10px;
+    }
+
+    #kk-find-common-results-wrapper-wrapper #kk-find-common-copy-results {
+      margin: 10px 40.5px 15px 0;
+    }
+  `
+}
+
+
+
+function findCommon_addEventListeners() {
+  
+  function addListener(id, type, source) {
+    document.getElementById(id).addEventListener('click', getWideFieldResults.bind(null, type, source))
+  }
+
+  addListener('kk-find-common-get-all-upstream', 'all', 'upstream')
+  addListener('kk-find-common-get-common-upstream', 'common', 'upstream')
+  addListener('kk-find-common-get-all-downstream', 'all', 'downstream')
+  addListener('kk-find-common-get-common-downstream', 'common', 'downstream')
+  addListener('kk-find-common-get-all', 'all', 'both')
+  addListener('kk-find-common-get-common', 'common', 'both')
+
+  document.getElementById('kk-find-common-copy-results').addEventListener('click', copySelectedWideFieldResults)
+}
+
+
+function copySelectedWideFieldResults() {
+  const ids = []
+
+  document.querySelectorAll('.result-id input[type="checkbox"]:checked').forEach(el => {
+    ids.push(el.parentElement.parentElement.dataset.id)
+  })
+
+  navigator.clipboard.writeText(ids).then(() => {
+    Dock.dialog({
+      id: 'kk-find-common-copy-results-direct',
+      html: 'The IDs have been copied to clipboard',
+      cancelCallback: () => {},
+      cancelLabel: 'Close'
+    }).show()
+  })
+}
+
+
+const getWideFieldResults = (type, source) => {
+  getWideFieldResults.type = type
+  getWideFieldResults.source = source
+  getWideFieldResults.numberOfFinishedRequests = 0
+
+  const resultIds = document.getElementsByClassName('result-id');
+  for (let i = 0; i < resultIds.length; i++) {
+    resultIds[i].style.color = 'white';
+  }
+
+  const ids = Array.from(document.querySelectorAll('.result-id input[type="checkbox"]:checked'))
+    .map(el => {
+      const grandParent = el.parentElement.parentElement;
+      const id = grandParent.dataset.id;
+      const direction = grandParent.classList.contains('up') ? 'up' : 'down';
+      if (id) {
+        getConnectivity(id, getWideFieldResults.onload, getWideFieldResults.onreadystatechange, getWideFieldResults.onerror, direction);
+        document.getElementById(`result-id-${id}-${direction}`).style.color = 'yellow';
+        return id;
+      }
+    })
+    .filter(Boolean);
+
+  if (!ids.length) {
+    return;
+  }
+  getWideFieldResults.numberOfCells = ids.length
+
+  const requests = ids.map(id => getConnectivity(id));
+  Promise.all(requests)
+    .then(() => {
+      const wrapperWrapper = document.getElementById('kk-find-common-results-wrapper-wrapper')
+      if (wrapperWrapper) {
+        wrapperWrapper.style.display = 'block'
+      }
+    })
+    .catch(error => {
+      console.error(error);
+    });
+}
+
+getWideFieldResults.results = {
+  upstream: {},
+  downstream: {}
+}
+
+
+getWideFieldResults.onload = (res, id, direction) => {
+  try {
+    res = JSON.parse(res.responseText).response;
+  } catch (error) {
+    document.getElementById(`result-id-${id}-${direction}`).style.color = '#FF0000';
+    return;
+  }
+  if (!res) {
+    return;
+  }
+
+  getWideFieldResults.results.upstream[id] = filterResults(res.incoming_table, 'Upstream Partner ID');
+  getWideFieldResults.results.downstream[id] = filterResults(res.outgoing_table, 'Downstream Partner ID');
+}
+
+getWideFieldResults.onreadystatechange = (res, id, direction) => {
+  if (!res) {
+    return;
+  }
+
+  const statusColumn = document.getElementById(`result-id-${id}-${direction}`);
+
+  switch (res.readyState) {
+    case 3:
+      statusColumn.style.color = '#FFA500';
+      break;
+    case 4:
+      getWideFieldResults.numberOfFinishedRequests++;
+      statusColumn.style.color = '#00FF00';
+
+      if (getWideFieldResults.numberOfFinishedRequests === getWideFieldResults.numberOfCells) {
+        setTimeout(getPartnersOfPartners.bind(null, getWideFieldResults.results, getWideFieldResults.type, getWideFieldResults.source), 0);
+      }
+      break;
+  }
+}
+
+getWideFieldResults.onerror = (res, id, direction) => {
+  document.getElementById(`result-id-${id}-${direction}`).style.color = '$FF0000';
+}
+
+
+
+
+function prepareWideFieldResults(MAX_NUMBER_OF_RESULTS, results, numberOfSources) {
+  let position = 0
+  const upstream = {}
+  const downstream = {}
+
+  results.forEach((result) => {
+    result.upstream.forEach((partnerId) => {
+      upstream[partnerId] = upstream[partnerId] || new Array(numberOfSources).fill(false)
+      upstream[partnerId][position] = true
+    })
+
+    result.downstream.forEach((partnerId) => {
+      downstream[partnerId] = downstream[partnerId] || new Array(numberOfSources).fill(false)
+      downstream[partnerId][position] = true
+    })
+
+    position++
+  })
+
+  if (QUICK_FIND) {
+    const ids = results.flatMap((el) => [...el.upstream, ...el.downstream])
+    console.log(ids.join('\r\n'))
+  }
+
+  const countOccurences = (data) => {
+    return Object.entries(data).map(([id, state]) => {
+      const sum = state.reduce((sum, value) => sum + value, 0)
+      return { id, sum }
+    }).sort((a, b) => b.sum - a.sum)
+  }
+
+  const numberOfOccurencesUpstream = countOccurences(upstream)
+  const numberOfOccurencesDownstream = countOccurences(downstream)
+
+  const tableUpstream = document.getElementById('kk-find-common-upstream-summary')
+  const tableDownstream = document.getElementById('kk-find-common-downstream-summary')
+  tableUpstream.innerHTML = generateWideFieldResultsHtml(numberOfOccurencesUpstream, upstream, 'up')
+  tableDownstream.innerHTML = generateWideFieldResultsHtml(numberOfOccurencesDownstream, downstream, 'down')
+}
+
+
+
+function generateWideFieldResultsHtml(occurences, sources, streamDirection) {
+  let html = '';
+
+  for (let i = 0; i < MAX_NUMBER_OF_RESULTS; i++) {
+    const id = occurences[i].id;
+    let sourcesHtml = '';
+
+    sources[id].forEach((source, index) => {
+      const bgColor = source ? FIND_COMMON_COLORS[index] : 'transparent';
+      sourcesHtml += `<td class="result-color" style="background-color: ${bgColor}"></td>`;
+    });
+
+    const resultId = `result-id-${id}-${streamDirection}`;
+    html += `
+      <tr>
+        <td id="${resultId}" class="result-id ${streamDirection}" data-id="${id}">
+          <label><input type="checkbox">${id}</label>
+        </td>
+        ${sourcesHtml}
+      </tr>`;
+  }
+
+  return html;
+}
+
+
+function filterResults(table, rowName) {
+  const ids = []
+
+  table.data.forEach(row => {
+    const text = row[rowName]
+    if (!text) return
+
+    const id = text.substring(1, text.indexOf(']'))
+    ids.push(id)
+  })
+
+  return ids
+}
+
+
+
+function getPartnersOfPartners(results, type, source) {
+  let partnersResults = [];
+  let tableToAnalyze = [];
+  let numberOfTables = 0;
+
+  if (source === 'upstream' || source === 'both') {
+    Object.values(results.upstream).forEach(partners => {
+      tableToAnalyze.push(...partners);
+      numberOfTables++;
+    });
+  }
+  
+  if (source === 'downstream' || source === 'both') {
+    Object.values(results.downstream).forEach(partners => {
+      tableToAnalyze.push(...partners);
+      // for "both" we would count the same "big" common synaptic parnter twice
+      if (source !== 'both') {
+        numberOfTables++;
+      }
+    });
+  }
+
+  if (type === 'common') {
+    const counters = {};
+    tableToAnalyze.forEach(partner => {
+      counters[partner] = (counters[partner] || 0) + 1;
+    });
+
+    Object.entries(counters).forEach(([id, count]) => {
+      if (count === numberOfTables) {
+        partnersResults.push(id);
+      }
+    });
+  } else {
+    partnersResults = [...new Set(tableToAnalyze)];
+  }
+
+  partnersResults.sort();
+
+  const dialogContent = `Found ${partnersResults.length} result(s)<br />Click the "Copy" button to copy the results to clipboard`;
+  const okCallback = () => {
+    navigator.clipboard.writeText(partnersResults).then(() => {
+      Dock.dialog({
+        id: 'kk-copy-common-copied-confirm',
+        html: 'IDs have been copied to clipboard',
+        cancelCallback: () => {},
+        cancelLabel: 'Close'
+      }).show();
+    });
+  };
+
+  Dock.dialog({
+    id: 'kk-find-common-ids-copied-msg',
+    html: dialogContent,
+    okCallback,
+    okLabel: 'Copy',
+    cancelCallback: () => {},
+    cancelLabel: 'Close'
+  }).show();
+}
+
+
+const showNeuropilsCoverage = (segments) => {
+  Dock.dialog({
+    width: 720,
+    id: 'show-neuropils-coverage',
+    html: showNeuropilsCoverage.generateHtml(segments),
+    css: showNeuropilsCoverage.getCss(),
+    destroyAfterClosing: true,
+    afterCreateCallback: () => {
+      getConnectivities(segments)
+      addButtonsEvents(segments)
+    }
+  }).show()
+}
+
+function getConnectivities(segments) {
+  segments.forEach(segment => {
+    const id = segment.firstElementChild.dataset.segId
+    getConnectivityForARow(id)
+  })
+}
+
+function getConnectivityForARow(id) {
+  getConnectivity(id, onload, onreadystatechange)
+
+  const idCell = document.getElementById(`neuropils-for-${id}`)
+  if (idCell) {
+    idCell.style.color  = 'yellow'
+  }
+
+  function onload(res) {
+    try {
+      res = JSON.parse(res.responseText).response;
+      addNeuropilsBars(id, res.graph_div.children[2].props.children.props.figure.data[0], true)
+      addNeuropilsBars(id, res.graph_div.children[3].props.children.props.figure.data[0], false)
+      addNeurotransmitters(id, res.incoming_table.data, true)
+      addNeurotransmitters(id, res.outgoing_table.data, false)
+      document.querySelector(`#neuropils-for-${id} button`)?.classList.add('retry-button-hidden')
+    }
+    catch {
+      document.querySelector(`#neuropils-for-${id} button`)?.classList.remove('retry-button-hidden')
+      if (idCell) {
+        idCell.style.color = '#FF0000'
+      }
+    }
+  }
+
+  function onreadystatechange(res, id) {
+    const idCell = document.getElementById(`neuropils-for-${id}`)
+
+    // cell might've been removed before finishing the task
+    if (!idCell) return
+
+    switch (res.readyState) {
+      case 3:
+        idCell.style.color = '#FFA500';
+        break;
+      case 4:
+        idCell.style.color = '#00FF00';
+        break;
+    }
+  }
+}
+
+function addButtonsEvents(segments) {
+  document.getElementById('neuropils-coverage-table').addEventListener('click', e => {
+    if (e.target.classList.contains('retry-button')) {
+      const row = e.target.parentElement.parentElement
+      getConnectivityForARow(row.dataset.segId)
+      row.style.height = 0
+      e.target.classList.add('retry-button-hidden')
+    }
+  })
+
+  document.getElementById('neuropils-select-all')?.addEventListener('click', e => {
+    document.querySelectorAll('#show-neuropils-coverage .neuropils-select-id').forEach(checkbox => {
+      if (!checkbox.parentElement.parentElement?.classList.contains('neuropils-hidden-row')) {
+        checkbox.checked = e.target.checked
+      }
+    })
+  })
+
+  document.getElementById('neuropils-copy-selected')?.addEventListener('click', e => {
+    const selected = []
+    document.querySelectorAll('#show-neuropils-coverage .neuropils-select-id:checked').forEach(checkbox => {
+      selected.push(checkbox.parentElement?.parentElement?.dataset.segId)
+    })
+
+    navigator.clipboard.writeText(selected)
+  })
+
+  document.getElementById('neuropils-hide-selected')?.addEventListener('click', e => {
+    document.querySelectorAll('#show-neuropils-coverage .neuropils-select-id:checked').forEach(checkbox => {
+      checkbox.checked = false
+      const row = checkbox.parentElement.parentElement
+      row?.classList.add('neuropils-hidden-row')
+
+    })
+  })
+
+  document.getElementById('neuropils-hide-unselected')?.addEventListener('click', e => {
+    document.querySelectorAll('#show-neuropils-coverage .neuropils-select-id:not(:checked)').forEach(checkbox => {
+      const row = checkbox.parentElement.parentElement
+      row?.classList.add('neuropils-hidden-row')
+    })
+  })
+
+  document.getElementById('neuropils-show-all-hidden')?.addEventListener('click', e => {
+    document.querySelectorAll('#show-neuropils-coverage .neuropils-row').forEach(row => {
+      row?.classList.remove('neuropils-hidden-row')
+    })
+  })
+
+  document.getElementById('neuropils-remove-selected')?.addEventListener('click', e => {
+    document.querySelectorAll('.neuropils-select-id').forEach(el => {
+      if (el.checked) {
+        el.parentElement?.parentElement.remove()
+      }
+    })
+  })
+
+  // here and below .querySelectorAll() instead of .getElementsByTagName(), because the latter creates a live NodeList,
+  // which shrinks while removing elements from it
+  document.getElementById('neuropils-remove-visible')?.addEventListener('click', e => {
+    document.querySelectorAll('.neuropils-row').forEach(el => {
+      if (!el.classList.contains('neuropils-hidden-row')) {
+        el.remove()
+      }
+    })
+  })
+
+  document.getElementById('neuropils-remove-hidden')?.addEventListener('click', e => {
+    document.querySelectorAll('.neuropils-hidden-row').forEach(el => {
+      el.remove()
+    })
+  })
+}
+
+showNeuropilsCoverage.generateHtml = (segments) => {
+  let html = `
+    <label><input type="checkbox" id="neuropils-select-all">Select All</label>
+    <button id="neuropils-copy-selected">Copy selected</button>
+    <button id="neuropils-hide-selected">Hide selected</button>
+    <button id="neuropils-hide-unselected">Hide unselected</button>
+    <button id="neuropils-show-all-hidden">Show all hidden</button>
+    <div id="neuropils-second-row-of-buttons">
+      <button id="neuropils-remove-selected">Remove selected</button>
+      <button id="neuropils-remove-visible">Remove visible</button>
+      <button id="neuropils-remove-hidden">Remove hidden</button>
+    </div>
+    <hr />
+  `
+
+  html += '<table id="neuropils-coverage-table">'
+  html += '<tr id="neuropils-neurotransmitters-header"><th></th><th>ID</th><th>neuropils</th><th>neurotransmitters</th></tr>'
+  segments.forEach(segment => {
+    const id = segment.firstElementChild.dataset.segId
+    html += `<tr id="neuropils-for-${id}" class="neuropils-row" data-seg-id="${id}">
+      <td><input type="checkbox" class="neuropils-select-id"></td>
+      <td>${id}</td>
+      <td class="neuropils-bars-cell"><div class="neuropils-bars-wrapper"></div></td>
+      <td class="neuropils-neurotransmitters"><div class="neurotransmitters-bars-wrapper"></div></td>
+      <td><button class="retry-button retry-button-hidden">Retry</button></td>
+    </tr>`
+  })
+
+  html += '</table>'
+
+  return html
+}
+
+
+function addNeuropilsBars(id, result, firstRow) {
+  const tableCell = document.querySelector(`#neuropils-for-${id} .neuropils-bars-wrapper`)
+  // the class below to add the white background color only after the neuropils are ready to be displayed
+  // otherwise there would be big bright empty bars shining at user
+  tableCell.classList.add('neuropils-bars-cell-background')
+
+  const { labels, values, marker: { colors } } = result;
+  for (let i = 0; i < labels.length; i++) {
+    const bar = document.createElement('div');
+    bar.classList.add('neuropil-bar');
+    bar.style.width = `${values[i] * 200}px`;
+    bar.style.backgroundColor = `#${colors[i]}`;
+    if (firstRow) {
+      bar.classList.add('bar-separator')
+    }
+    bar.title = labels[i];
+    tableCell.appendChild(bar);
+  }
+}
+
+
+function addNeurotransmitters(id, result, firstRow) {
+  let gaba = 0
+  let ach  = 0
+  let glut = 0
+  let oct  = 0
+  let ser  = 0
+  let da   = 0
+  let synapses = 0
+
+  for (let i = 0; i < result.length; i++) {
+    const res = result[i]
+    const syn = parseInt(res['Synapses'], 10)
+
+    gaba += parseFloat(res['Gaba Avg']) / syn
+    ach  += parseFloat(res['Ach Avg'] ) / syn
+    glut += parseFloat(res['Glut Avg']) / syn
+    oct  += parseFloat(res['Oct Avg'] ) / syn
+    ser  += parseFloat(res['Ser Avg'] ) / syn
+    da   += parseFloat(res['Da Avg']  ) / syn
+
+    synapses += syn
+  }
+
+  gaba /= synapses
+  ach  /= synapses
+  glut /= synapses
+  oct  /= synapses
+  ser  /= synapses
+  da   /= synapses
+
+  const coefficient = 1 / (gaba + ach + glut + oct + ser + da)
+
+  gaba *= coefficient
+  ach *= coefficient
+  glut *= coefficient
+  oct *= coefficient
+  ser *= coefficient
+  da *= coefficient
+
+  const wrapper = document.createElement('div')
+  wrapper.classList.add('neuropils-neurotransmitters-wrapper')
+  if (firstRow) {
+    document.querySelector(`#neuropils-for-${id} .neurotransmitters-bars-wrapper`).remove()
+    wrapper.classList.add('bar-separator')
+  }
+  document.querySelector(`#neuropils-for-${id} .neuropils-neurotransmitters`).appendChild(wrapper)
+  createNeurotransmitterBar(id, wrapper, 'Gaba', gaba)
+  createNeurotransmitterBar(id, wrapper, 'Ach',  ach)
+  createNeurotransmitterBar(id, wrapper, 'Glut', glut)
+  createNeurotransmitterBar(id, wrapper, 'Oct',  oct)
+  createNeurotransmitterBar(id, wrapper, 'Ser',  ser)
+  createNeurotransmitterBar(id, wrapper, 'Da',   da)
+}
+
+
+function createNeurotransmitterBar(id, target, type, size) {
+  const bar = document.createElement('div')
+  bar.classList.add('neurotransmitter-circle')
+  bar.classList.add('nt-' + type.toLowerCase())
+  bar.style.height = '10px'
+  bar.style.width = size * 200 + 'px'
+  bar.title = type
+  target?.appendChild(bar)
+}
+
+
+showNeuropilsCoverage.getCss = () => {
+  return /*css*/`
+    #show-neuropils-coverage .content {
+      max-height: 95vh;
+      overflow-y: auto;
+    }
+
+    #neuropils-neurotransmitters-header {
+      position: sticky;
+      top: 0px;
+      background-color: #222;
+    }
+
+    #neuropils-coverage-table tr:hover {
+      background-color: #333;
+    }
+
+    .neuropils-row {
+      font-size: 14px;
+    }
+
+    .neuropils-hidden-row {
+      visibility: collapse;
+    }
+
+    #show-neuropils-coverage .content button.retry-button {
+      height: 20px;
+      width: 70px;
+    }
+    .neuropils-neurotransmitters {
+      width: 200px;
+    }
+
+    .neurotransmitters-bars-wrapper,
+    .neuropils-bars-wrapper {
+      margin-left: 10px;
+      width: 200px;
+      height: 18px;
+      line-height: 0;
+      border: 1px solid gray;
+    }
+
+    .neuropils-bars-cell-background {
+      background-color: white;
+    }
+
+    .neuropil-bar {
+      display: inline-block;
+      height: 9px;
+    }
+
+    .retry-button-hidden {
+      visibility: hidden;
+    }
+
+    #neuropils-select-all {
+      vertical-align: text-top;
+      margin-right: 8px;
+      cursor: pointer;
+    }
+
+    label:has(#neuropils-select-all) {
+      cursor: pointer;
+      user-select: none;
+    }
+
+    #show-neuropils-coverage .content button {
+      width: 120px;
+    }
+
+    .neuropils-neurotransmitters-wrapper {
+      line-height: 0;
+    }
+
+    #neuropils-second-row-of-buttons {
+      margin: 10px 0 0 94px;
+    }
+
+    .neurotransmitter-circle {
+      display: inline-block;
+      background-color: lightblue;
+      vertical-align: middle;
+    }
+
+    .nt-gaba {
+      background-color: rgb(99, 110, 250);
+    }
+
+    .nt-ach {
+      background-color: rgb(239, 85, 59);
+    }
+
+    .nt-glut {
+      background-color: rgb(0, 204, 150);
+    }
+
+    .nt-oct {
+      background-color: rgb(171, 99, 250);
+    }
+
+    .nt-ser {
+      background-color: rgb(255, 161, 90);
+    }
+
+    .nt-da {
+      background-color: rgb(25, 211, 243);
+    }
+
+    .bar-separator {
+      border-bottom: 1px solid white;
+      width: 200px;
+    }
+  `
+}
+
+function main() {
+  addPickr()
+  addActionsMenu()
 }

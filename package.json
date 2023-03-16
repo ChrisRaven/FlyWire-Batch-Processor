@@ -1,0 +1,11 @@
+{
+  "name": "flywire-batch-processor",
+  "version": "1.0.0",
+  "devDependencies": {
+    "async": "^3.2.4",
+    "grunt": "^1.6.1",
+    "grunt-contrib-watch": "^1.1.0",
+    "grunt-includes": "^1.1.0",
+    "grunt-wait": "^0.3.0"
+  }
+}
