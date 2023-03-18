@@ -17,12 +17,18 @@ function addActionsMenu() {
   const options = [
     ['optgroup', 'Change color for'],
     ['visible', 'change-color-visible'],
+    ['all', 'change-color-all'],
 
     ['optgroup', 'Find common partners for'],
     ['visible', 'find-common-partners-visible'],
 
     ['optgroup', 'Show neuropils coverage'],
-    ['visible', 'show-neuropils-coverage'],
+    ['visible', 'show-neuropils-coverage-visible'],
+    ['all', 'show-neuropils-coverage-all'],
+
+    ['optgroup', 'Show statuses & labels'],
+    ['visible', 'show-statuses-and-labels-visible'],
+    ['all', 'show-statuses-and-labels-all'],
 
     ['optgroup', 'Show only'],
     ['identified', 'show-identified-only'],
@@ -101,7 +107,8 @@ function actionsHandler(e) {
     .lightbulb.error.outdated - outdated
     .lightbulb.error - unknown
   */
-  
+
+  const all = []
   const identified = []
   const completed = []
   const normal = []
@@ -111,6 +118,8 @@ function actionsHandler(e) {
   const hidden = []
 
   segments.forEach(segment => {
+    all.push(segment)
+
     const lightbulb = segment.getElementsByClassName('nge-segment-changelog-button')[0]
     const checkbox = segment.getElementsByClassName('segment-checkbox')[0]
 
@@ -145,13 +154,26 @@ function actionsHandler(e) {
     case 'change-color-visible':
       changeColor(visible)
       break
+    case 'change-color-all':
+      changeColor(all)
+      break
 
     case 'find-common-partners-visible':
       findCommon(QUICK_FIND ? hidden : visible)
       break
 
-    case 'show-neuropils-coverage':
+    case 'show-neuropils-coverage-visible':
       showNeuropilsCoverage(visible)
+      break
+    case 'show-neuropils-coverage-all':
+      showNeuropilsCoverage(all)
+      break
+    
+    case 'show-statuses-and-labels-visible':
+      showStatusesAndLabels(visible)
+      break
+    case 'show-statuses-and-labels-all':
+      showStatusesAndLabels(all)
       break
 
     case 'show-identified-only':

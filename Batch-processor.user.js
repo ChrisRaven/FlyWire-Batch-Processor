@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Batch Processor
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.4
+// @version      0.5
 // @description  Batch processing segments in FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -31,7 +31,444 @@ let wait = setInterval(() => {
 const QUICK_FIND = false // to quickly display both up- and downstream partners for the first 30 HIDDEN cells
 const MAX_NUMBER_OF_SOURCES = QUICK_FIND ? 30 : 10
 const MAX_NUMBER_OF_RESULTS = 20
-const FIND_COMMON_COLORS = ['#f8e266', '#9de0f9', '#eed1e4', '#a1ec46', '#fc3cb2', '#9b95cf', '#4c7dbc', '#ca5af6', '#f0ae42', '#2df6af']
+const FIND_COMMON_COLORS = ['#f8e266', '#9de0f9', '#eed1e4', '#a1ec46', '#fc3cb2', '#9b95cf', '#4c7dbc', '#ca5af6', '#f0ae42', '#2df6af'];
+
+
+// regexpxs extracted from
+// (c) BSD-3-Clause
+// https://github.com/fastify/secure-json-parse/graphs/contributors and https://github.com/hapijs/bourne/graphs/contributors
+
+const suspectProtoRx = /(?:_|\\u005[Ff])(?:_|\\u005[Ff])(?:p|\\u0070)(?:r|\\u0072)(?:o|\\u006[Ff])(?:t|\\u0074)(?:o|\\u006[Ff])(?:_|\\u005[Ff])(?:_|\\u005[Ff])/;
+const suspectConstructorRx = /(?:c|\\u0063)(?:o|\\u006[Ff])(?:n|\\u006[Ee])(?:s|\\u0073)(?:t|\\u0074)(?:r|\\u0072)(?:u|\\u0075)(?:c|\\u0063)(?:t|\\u0074)(?:o|\\u006[Ff])(?:r|\\u0072)/;
+
+/*
+    json_parse.js
+    2012-06-20
+
+    Public Domain.
+
+    NO WARRANTY EXPRESSED OR IMPLIED. USE AT YOUR OWN RISK.
+
+    This file creates a json_parse function.
+    During create you can (optionally) specify some behavioural switches
+
+        require('json-bigint')(options)
+
+            The optional options parameter holds switches that drive certain
+            aspects of the parsing process:
+            * options.strict = true will warn about duplicate-key usage in the json.
+              The default (strict = false) will silently ignore those and overwrite
+              values for keys that are in duplicate use.
+
+    The resulting function follows this signature:
+        json_parse(text, reviver)
+            This method parses a JSON text to produce an object or array.
+            It can throw a SyntaxError exception.
+
+            The optional reviver parameter is a function that can filter and
+            transform the results. It receives each of the keys and values,
+            and its return value is used instead of the original value.
+            If it returns what it received, then the structure is not modified.
+            If it returns undefined then the member is deleted.
+
+            Example:
+
+            // Parse the text. Values that look like ISO date strings will
+            // be converted to Date objects.
+
+            myData = json_parse(text, function (key, value) {
+                var a;
+                if (typeof value === 'string') {
+                    a =
+/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2}(?:\.\d*)?)Z$/.exec(value);
+                    if (a) {
+                        return new Date(Date.UTC(+a[1], +a[2] - 1, +a[3], +a[4],
+                            +a[5], +a[6]));
+                    }
+                }
+                return value;
+            });
+
+    This is a reference implementation. You are free to copy, modify, or
+    redistribute.
+
+    This code should be minified before deployment.
+    See http://javascript.crockford.com/jsmin.html
+
+    USE YOUR OWN COPY. IT IS EXTREMELY UNWISE TO LOAD CODE FROM SERVERS YOU DO
+    NOT CONTROL.
+*/
+
+/*members "", "\"", "\/", "\\", at, b, call, charAt, f, fromCharCode,
+    hasOwnProperty, message, n, name, prototype, push, r, t, text
+*/
+
+var json_parse = function (options) {
+  'use strict';
+
+  // This is a function that can parse a JSON text, producing a JavaScript
+  // data structure. It is a simple, recursive descent parser. It does not use
+  // eval or regular expressions, so it can be used as a model for implementing
+  // a JSON parser in other languages.
+
+  // We are defining the function inside of another function to avoid creating
+  // global variables.
+
+  // Default options one can override by passing options to the parse()
+  var _options = {
+    strict: false, // not being strict means do not generate syntax errors for "duplicate key"
+    storeAsString: false, // toggles whether the values should be stored as BigNumber (default) or a string
+    alwaysParseAsBig: false, // toggles whether all numbers should be Big
+    useNativeBigInt: false, // toggles whether to use native BigInt instead of bignumber.js
+    protoAction: 'error',
+    constructorAction: 'error',
+  };
+
+  // If there are options, then use them to override the default _options
+  if (options !== undefined && options !== null) {
+    if (options.strict === true) {
+      _options.strict = true;
+    }
+    if (options.storeAsString === true) {
+      _options.storeAsString = true;
+    }
+    _options.alwaysParseAsBig =
+      options.alwaysParseAsBig === true ? options.alwaysParseAsBig : false;
+    _options.useNativeBigInt =
+      options.useNativeBigInt === true ? options.useNativeBigInt : false;
+
+    if (typeof options.constructorAction !== 'undefined') {
+      if (
+        options.constructorAction === 'error' ||
+        options.constructorAction === 'ignore' ||
+        options.constructorAction === 'preserve'
+      ) {
+        _options.constructorAction = options.constructorAction;
+      } else {
+        throw new Error(
+          `Incorrect value for constructorAction option, must be "error", "ignore" or undefined but passed ${options.constructorAction}`
+        );
+      }
+    }
+
+    if (typeof options.protoAction !== 'undefined') {
+      if (
+        options.protoAction === 'error' ||
+        options.protoAction === 'ignore' ||
+        options.protoAction === 'preserve'
+      ) {
+        _options.protoAction = options.protoAction;
+      } else {
+        throw new Error(
+          `Incorrect value for protoAction option, must be "error", "ignore" or undefined but passed ${options.protoAction}`
+        );
+      }
+    }
+  }
+
+  var at, // The index of the current character
+    ch, // The current character
+    escapee = {
+      '"': '"',
+      '\\': '\\',
+      '/': '/',
+      b: '\b',
+      f: '\f',
+      n: '\n',
+      r: '\r',
+      t: '\t',
+    },
+    text,
+    error = function (m) {
+      // Call error when something is wrong.
+
+      throw {
+        name: 'SyntaxError',
+        message: m,
+        at: at,
+        text: text,
+      };
+    },
+    next = function (c) {
+      // If a c parameter is provided, verify that it matches the current character.
+
+      if (c && c !== ch) {
+        error("Expected '" + c + "' instead of '" + ch + "'");
+      }
+
+      // Get the next character. When there are no more characters,
+      // return the empty string.
+
+      ch = text.charAt(at);
+      at += 1;
+      return ch;
+    },
+    number = function () {
+      // Parse a number value.
+
+      var number,
+        string = '';
+
+      if (ch === '-') {
+        string = '-';
+        next('-');
+      }
+      while (ch >= '0' && ch <= '9') {
+        string += ch;
+        next();
+      }
+      if (ch === '.') {
+        string += '.';
+        while (next() && ch >= '0' && ch <= '9') {
+          string += ch;
+        }
+      }
+      if (ch === 'e' || ch === 'E') {
+        string += ch;
+        next();
+        if (ch === '-' || ch === '+') {
+          string += ch;
+          next();
+        }
+        while (ch >= '0' && ch <= '9') {
+          string += ch;
+          next();
+        }
+      }
+      number = +string;
+      if (!isFinite(number)) {
+        error('Bad number');
+      } else {
+        //if (number > 9007199254740992 || number < -9007199254740992)
+        // Bignumber has stricter check: everything with length > 15 digits disallowed
+        if (string.length > 15)
+          return _options.storeAsString
+            ? string
+            : BigInt(string)
+        else
+          return !_options.alwaysParseAsBig
+            ? number
+            : BigInt(number)
+      }
+    },
+    string = function () {
+      // Parse a string value.
+
+      var hex,
+        i,
+        string = '',
+        uffff;
+
+      // When parsing for string values, we must look for " and \ characters.
+
+      if (ch === '"') {
+        var startAt = at;
+        while (next()) {
+          if (ch === '"') {
+            if (at - 1 > startAt) string += text.substring(startAt, at - 1);
+            next();
+            return string;
+          }
+          if (ch === '\\') {
+            if (at - 1 > startAt) string += text.substring(startAt, at - 1);
+            next();
+            if (ch === 'u') {
+              uffff = 0;
+              for (i = 0; i < 4; i += 1) {
+                hex = parseInt(next(), 16);
+                if (!isFinite(hex)) {
+                  break;
+                }
+                uffff = uffff * 16 + hex;
+              }
+              string += String.fromCharCode(uffff);
+            } else if (typeof escapee[ch] === 'string') {
+              string += escapee[ch];
+            } else {
+              break;
+            }
+            startAt = at;
+          }
+        }
+      }
+      error('Bad string');
+    },
+    white = function () {
+      // Skip whitespace.
+
+      while (ch && ch <= ' ') {
+        next();
+      }
+    },
+    word = function () {
+      // true, false, or null.
+
+      switch (ch) {
+        case 't':
+          next('t');
+          next('r');
+          next('u');
+          next('e');
+          return true;
+        case 'f':
+          next('f');
+          next('a');
+          next('l');
+          next('s');
+          next('e');
+          return false;
+        case 'n':
+          next('n');
+          next('u');
+          next('l');
+          next('l');
+          return null;
+      }
+      error("Unexpected '" + ch + "'");
+    },
+    value, // Place holder for the value function.
+    array = function () {
+      // Parse an array value.
+
+      var array = [];
+
+      if (ch === '[') {
+        next('[');
+        white();
+        if (ch === ']') {
+          next(']');
+          return array; // empty array
+        }
+        while (ch) {
+          array.push(value());
+          white();
+          if (ch === ']') {
+            next(']');
+            return array;
+          }
+          next(',');
+          white();
+        }
+      }
+      error('Bad array');
+    },
+    object = function () {
+      // Parse an object value.
+
+      var key,
+        object = Object.create(null);
+
+      if (ch === '{') {
+        next('{');
+        white();
+        if (ch === '}') {
+          next('}');
+          return object; // empty object
+        }
+        while (ch) {
+          key = string();
+          white();
+          next(':');
+          if (
+            _options.strict === true &&
+            Object.hasOwnProperty.call(object, key)
+          ) {
+            error('Duplicate key "' + key + '"');
+          }
+
+          if (suspectProtoRx.test(key) === true) {
+            if (_options.protoAction === 'error') {
+              error('Object contains forbidden prototype property');
+            } else if (_options.protoAction === 'ignore') {
+              value();
+            } else {
+              object[key] = value();
+            }
+          } else if (suspectConstructorRx.test(key) === true) {
+            if (_options.constructorAction === 'error') {
+              error('Object contains forbidden constructor property');
+            } else if (_options.constructorAction === 'ignore') {
+              value();
+            } else {
+              object[key] = value();
+            }
+          } else {
+            object[key] = value();
+          }
+
+          white();
+          if (ch === '}') {
+            next('}');
+            return object;
+          }
+          next(',');
+          white();
+        }
+      }
+      error('Bad object');
+    };
+
+  value = function () {
+    // Parse a JSON value. It could be an object, an array, a string, a number,
+    // or a word.
+
+    white();
+    switch (ch) {
+      case '{':
+        return object();
+      case '[':
+        return array();
+      case '"':
+        return string();
+      case '-':
+        return number();
+      default:
+        return ch >= '0' && ch <= '9' ? number() : word();
+    }
+  };
+
+  // Return the json_parse function. It will have access to all of the above
+  // functions and variables.
+
+  return function (source, reviver) {
+    var result;
+
+    text = source + '';
+    at = 0;
+    ch = ' ';
+    result = value();
+    white();
+    if (ch) {
+      error('Syntax error');
+    }
+
+    // If there is a reviver function, we recursively walk the new structure,
+    // passing each name/value pair to the reviver function for possible
+    // transformation, starting with a temporary root object that holds the result
+    // in an empty key. If there is not a reviver function, we simply return the
+    // result.
+
+    return typeof reviver === 'function'
+      ? (function walk(holder, key) {
+          var k,
+            v,
+            value = holder[key];
+          if (value && typeof value === 'object') {
+            Object.keys(value).forEach(function (k) {
+              v = walk(value, k);
+              if (v !== undefined) {
+                value[k] = v;
+              } else {
+                delete value[k];
+              }
+            });
+          }
+          return reviver.call(holder, key, value);
+        })({ '': result }, '')
+      : result;
+  };
+};
+
 
 
 
@@ -156,12 +593,18 @@ function addActionsMenu() {
   const options = [
     ['optgroup', 'Change color for'],
     ['visible', 'change-color-visible'],
+    ['all', 'change-color-all'],
 
     ['optgroup', 'Find common partners for'],
     ['visible', 'find-common-partners-visible'],
 
     ['optgroup', 'Show neuropils coverage'],
-    ['visible', 'show-neuropils-coverage'],
+    ['visible', 'show-neuropils-coverage-visible'],
+    ['all', 'show-neuropils-coverage-all'],
+
+    ['optgroup', 'Show statuses & labels'],
+    ['visible', 'show-statuses-and-labels-visible'],
+    ['all', 'show-statuses-and-labels-all'],
 
     ['optgroup', 'Show only'],
     ['identified', 'show-identified-only'],
@@ -240,7 +683,8 @@ function actionsHandler(e) {
     .lightbulb.error.outdated - outdated
     .lightbulb.error - unknown
   */
-  
+
+  const all = []
   const identified = []
   const completed = []
   const normal = []
@@ -250,6 +694,8 @@ function actionsHandler(e) {
   const hidden = []
 
   segments.forEach(segment => {
+    all.push(segment)
+
     const lightbulb = segment.getElementsByClassName('nge-segment-changelog-button')[0]
     const checkbox = segment.getElementsByClassName('segment-checkbox')[0]
 
@@ -284,13 +730,26 @@ function actionsHandler(e) {
     case 'change-color-visible':
       changeColor(visible)
       break
+    case 'change-color-all':
+      changeColor(all)
+      break
 
     case 'find-common-partners-visible':
       findCommon(QUICK_FIND ? hidden : visible)
       break
 
-    case 'show-neuropils-coverage':
+    case 'show-neuropils-coverage-visible':
       showNeuropilsCoverage(visible)
+      break
+    case 'show-neuropils-coverage-all':
+      showNeuropilsCoverage(all)
+      break
+    
+    case 'show-statuses-and-labels-visible':
+      showStatusesAndLabels(visible)
+      break
+    case 'show-statuses-and-labels-all':
+      showStatusesAndLabels(all)
       break
 
     case 'show-identified-only':
@@ -1359,6 +1818,307 @@ showNeuropilsCoverage.getCss = () => {
     }
   `
 }
+function showStatusesAndLabels(visible) {
+  const ids = visible.map(segment => segment.firstChild.dataset.segId)
+
+  displayDialogWindow(ids)
+
+  let params = []
+  for(let i = 0; i < ids.length; i++) {
+    params.push(ids[i])
+    if ((i > 0 && !(i % 60)) || i === ids.length - 1) {
+      getLabels(params)
+      params = []
+    }
+  }
+}
+
+
+function displayDialogWindow(ids) {
+  Dock.dialog({
+    width: 870,
+    id: 'statuses-dialog',
+    html: buildTable(ids),
+    css: addStatusesCss(),
+    afterCreateCallback: addStatusButtonsEvents,
+    destroyAfterClosing: true,
+    okCallback: () => {},
+    okLabel: 'Close'
+  }).show()
+}
+
+
+function addHeaderBar() {
+  return /*html*/`
+    <div id="statuses-header-bar">
+      <label><input type="checkbox" id="statuses-select-all">Select all</label>
+      <button id="statuses-copy-selected">Copy selected</button>
+      <button id="statuses-remove-selected">Remove selected</button>
+      <button id="statuses-remove-identified">Remove identified</button>
+      <button id="statuses-remove-unidentified">Remove unidentified</button>
+      <button id="statuses-remove-unfinished">Remove unfinished</button>
+    </div>
+    <hr />
+  `
+}
+
+
+function buildTable(ids) {
+  let html = addHeaderBar()
+
+  html += '<table id="statuses-and-labels-table">'
+  html += /*html*/`
+    <tr>
+      <th></th>
+      <th>ID</th>
+      <th>Statuses</th>
+      <th>Labels</th>
+      <th>Authors</th>
+      <th>Affiliations</th>
+    </tr>`
+
+  ids.forEach(id => {
+    html += /*html*/`<tr id="status-for-${id}" data-seg-id="${id}">
+      <td class="statuses-checkbox"><input type="checkbox" /></td>
+      <td class="statuses-id">${id}</td>
+      <td class="statuses-status"></td>
+      <td class="statuses-labels"></td>
+      <td class="statuses-authors"></td>
+      <td class="statuses-affiliation"></td>
+    </tr>`
+  })
+  html += '</table>'
+
+  return html
+}
+
+
+function addStatusButtonsEvents() {
+  document.getElementById('statuses-select-all').addEventListener('click', e => {
+    document.querySelectorAll('.statuses-checkbox input').forEach(checkbox => {
+      checkbox.checked = e.target.checked
+    })
+  })
+
+  document.getElementById('statuses-copy-selected').addEventListener('click', e => {
+    const selected = []
+    document.querySelectorAll('.statuses-checkbox input:checked').forEach(checkbox => {
+      selected.push(checkbox.closest('tr').dataset.segId)
+    })
+
+    navigator.clipboard.writeText(selected.join(','))
+  })
+  
+  document.getElementById('statuses-remove-selected').addEventListener('click', e => {
+    const container = document.querySelector('.item-container')
+
+    document.querySelectorAll('.statuses-checkbox input:checked').forEach(checkbox => {
+      const row = checkbox.closest('tr')
+      const id = row.dataset.segId
+      row?.remove()
+      container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
+    })
+  })
+  
+  document.getElementById('statuses-remove-identified').addEventListener('click', e => {
+    const container = document.querySelector('.item-container')
+    const table = document.getElementById('statuses-and-labels-table')
+
+    table.querySelectorAll('.identified').forEach(checkbox => {
+      const row = checkbox.closest('tr')
+      const id = row.dataset.segId
+      row?.remove()
+      container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
+    })
+  })
+  
+  document.getElementById('statuses-remove-unidentified').addEventListener('click', e => {
+    const container = document.querySelector('.item-container')
+    const table = document.getElementById('statuses-and-labels-table')
+
+    table.querySelectorAll('.statuses-status:not(.identified):not(.outdated)').forEach(statusCell => {
+      const row = statusCell.closest('tr')
+      const id = row.dataset.segId
+      row?.remove()
+      container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
+    })
+  })
+
+  document.getElementById('statuses-remove-unfinished').addEventListener('click', e => {
+    const container = document.querySelector('.item-container')
+    const table = document.getElementById('statuses-and-labels-table')
+
+    table.querySelectorAll('.incompleted').forEach(statusCell => {
+      const row = statusCell.closest('tr')
+      const id = row.dataset.segId
+      row?.remove()
+      container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
+    })
+  })
+  
+}
+
+
+function getLabels(ids) {
+  let url = 'https://prod.flywire-daf.com/neurons/api/v1/cell_identification?filter_by=root_id&as_json=1&ignore_bad_ids=True&filter_string='
+  url += ids.join(',')
+  url += '&middle_auth_token='
+  url += localStorage.getItem('auth_token')
+
+  fetch(url)
+    .then(res => res.text())
+    .then(data => fillLabels(json_parse()(data), ids))
+}
+
+
+function getCompletedStatuses(ids) {
+  let url = 'https://prod.flywire-daf.com/neurons/api/v1/proofreading_status?filter_by=root_id&as_json=1&ignore_bad_ids=True&filter_string='
+  url += ids.join(',')
+  url += '&middle_auth_token='
+  url += localStorage.getItem('auth_token')
+
+  fetch(url)
+    .then(res => res.text())
+    .then(data => {
+      data = json_parse()(data)
+      const allCompleted = Object.values(data.pt_root_id).map(id => id.toString())
+      const notCompleted = arraySubtraction(ids, allCompleted)
+      const completedNotIdentified = arraySubtraction(ids, notCompleted)
+      completedNotIdentified.forEach(id => {
+        document.querySelector(`#status-for-${id} .statuses-status`)?.classList.add('completed')
+    
+      })
+
+      fillIncompletedStatuses(notCompleted)
+    })
+}
+
+
+function fillIncompletedStatuses(ids) {
+  let url = 'https://prodv1.flywire-daf.com/segmentation/api/v1/table/fly_v31/is_latest_roots?middle_auth_token='
+  url += localStorage.getItem('auth_token')
+
+  fetch(url, {
+    method: 'POST',
+    body: JSON.stringify({ node_ids: ids.map(id => id.toString()) })
+  })
+    .then(res => res.json())
+    .then(data => {
+      data.is_latest.forEach((state, i) => {
+        document.querySelector(`#status-for-${ids[i]} .statuses-status`)?.classList.add(state ? 'incompleted' : 'outdated')
+      })
+    })
+}
+
+
+// Source: ChatGPT
+function arraySubtraction(array1, array2) {
+  const result = [];
+
+  for (let i = 0; i < array1.length; i++) {
+    if (!array2.includes(array1[i])) {
+      result.push(array1[i]);
+    }
+  }
+
+  return result;
+}
+
+
+function fillLabels(data, ids) {
+  const identifiedIds = []
+  for (let [i, id] of Object.entries(data.pt_root_id)) {
+    identifiedIds.push(id.toString()) // .toString() to compare two arrays with the same type
+
+    const label = document.createElement('div')
+    label.classList.add('statuses-label')
+    label.textContent = data.tag[i]
+    document.querySelector(`#status-for-${id} .statuses-labels`)?.appendChild(label)
+    
+    const name = document.createElement('div')
+    name.classList.add('statuses-name')
+    name.textContent = data.user_name[i]
+    document.querySelector(`#status-for-${id} .statuses-authors`)?.appendChild(name)
+
+    const aff = document.createElement('div')
+    aff.classList.add('statuses-name')
+    aff.textContent = data.user_aff[i]
+    document.querySelector(`#status-for-${id} .statuses-affiliation`)?.appendChild(aff)
+
+    document.querySelector(`#status-for-${id} .statuses-status`)?.classList.add('identified')
+  }
+
+  const diff = arraySubtraction(ids, identifiedIds)
+
+  getCompletedStatuses(diff)
+}
+
+
+function addStatusesCss() {
+  return /*css*/`
+    #statuses-dialog .content {
+      max-height: 90vh;
+      overflow-y: auto;
+      font-size: 12px;
+    }
+
+    label:has(#statuses-select-all) {
+      margin-right: 20px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    #statuses-select-all {
+      vertical-align: text-bottom;
+      margin: 0 7px;
+    }
+
+    #statuses-dialog #statuses-header-bar button {
+      width: 140px;
+    }
+
+    #statuses-dialog th {
+      top: 20px;
+      position: sticky;
+      background-color: #222;
+    }
+
+    #statuses-dialog tr:nth-child(even) {
+      background-color: #333;
+    }
+
+    #statuses-dialog td {
+      pading-left: 5px;
+      padding-right: 30px;
+    }
+
+    #statuses-dialog .statuses-checkbox {
+      padding: 0 5px;
+      vertical-align: middle;
+    }
+
+    .statuses-labels {
+      color: lightgreen;
+    }
+
+    .statuses-status.identified {
+      background-color: #2ecc71;
+    }
+
+    .statuses-status.completed {
+      background-color: #b01fff;
+    }
+
+    .statuses-status.incompleted {
+      background-color: #e2c96a;
+    }
+
+    .statuses-status.outdated {
+      background-color: #111111;
+    }
+  `
+}
+
 
 function main() {
   addPickr()
