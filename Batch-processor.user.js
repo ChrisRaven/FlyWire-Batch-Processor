@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Batch Processor
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.5
+// @version      0.5.0.1
 // @description  Batch processing segments in FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -1005,7 +1005,7 @@ function changeColor(type) {
 
 const findCommon = (type) => {
   let ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
-  findCommon.idsLength = ids.length
+  findCommon.idsLength = Math.min(ids.length, MAX_NUMBER_OF_SOURCES)
   
   if (!ids || !findCommon.idsLength) return console.error('No segments selected')
 
@@ -1209,7 +1209,7 @@ function copySelectedWideFieldResults() {
 }
 
 
-const getWideFieldResults = (type, source) => {
+const getWideFieldResults = (type, source) => {console.log('jere?')
   getWideFieldResults.type = type
   getWideFieldResults.source = source
   getWideFieldResults.numberOfFinishedRequests = 0
@@ -1256,7 +1256,7 @@ getWideFieldResults.results = {
 }
 
 
-getWideFieldResults.onload = (res, id, direction) => {
+getWideFieldResults.onload = (res, id, direction) => {console.log('loading...')
   try {
     res = JSON.parse(res.responseText).response;
   } catch (error) {
@@ -1271,7 +1271,7 @@ getWideFieldResults.onload = (res, id, direction) => {
   getWideFieldResults.results.downstream[id] = filterResults(res.outgoing_table, 'Downstream Partner ID');
 }
 
-getWideFieldResults.onreadystatechange = (res, id, direction) => {
+getWideFieldResults.onreadystatechange = (res, id, direction) => {console.log('loaded')
   if (!res) {
     return;
   }
@@ -1285,7 +1285,7 @@ getWideFieldResults.onreadystatechange = (res, id, direction) => {
     case 4:
       getWideFieldResults.numberOfFinishedRequests++;
       statusColumn.style.color = '#00FF00';
-
+console.log('here', getWideFieldResults.numberOfFinishedRequests, getWideFieldResults.numberOfCells)
       if (getWideFieldResults.numberOfFinishedRequests === getWideFieldResults.numberOfCells) {
         setTimeout(getPartnersOfPartners.bind(null, getWideFieldResults.results, getWideFieldResults.type, getWideFieldResults.source), 0);
       }
