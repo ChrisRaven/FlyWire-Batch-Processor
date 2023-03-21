@@ -30,6 +30,9 @@ function addActionsMenu() {
     ['visible', 'show-statuses-and-labels-visible'],
     ['all', 'show-statuses-and-labels-all'],
 
+    ['optgroup', 'Get synaptic partners for'],
+    ['first visible', 'get-synaptic-partners'],
+
     ['optgroup', 'Show only'],
     ['identified', 'show-identified-only'],
     ['completed', 'show-completed-only'],
@@ -174,6 +177,10 @@ function actionsHandler(e) {
       break
     case 'show-statuses-and-labels-all':
       showStatusesAndLabels(all)
+      break
+    
+    case 'get-synaptic-partners':
+      getSynapticPartners(visible)
       break
 
     case 'show-identified-only':

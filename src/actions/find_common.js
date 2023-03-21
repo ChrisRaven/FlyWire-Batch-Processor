@@ -67,9 +67,6 @@ findCommon.onreadystatechange = (res, id, direction) => {
 }
 
 
-
-
-
 function findCommon_getHtml(ids) {
   let html = /*html*/`
     <table id="kk-find-common-sources-table">
@@ -204,7 +201,7 @@ function copySelectedWideFieldResults() {
 }
 
 
-const getWideFieldResults = (type, source) => {console.log('jere?')
+const getWideFieldResults = (type, source) => {
   getWideFieldResults.type = type
   getWideFieldResults.source = source
   getWideFieldResults.numberOfFinishedRequests = 0
@@ -251,7 +248,7 @@ getWideFieldResults.results = {
 }
 
 
-getWideFieldResults.onload = (res, id, direction) => {console.log('loading...')
+getWideFieldResults.onload = (res, id, direction) => {
   try {
     res = JSON.parse(res.responseText).response;
   } catch (error) {
@@ -266,7 +263,7 @@ getWideFieldResults.onload = (res, id, direction) => {console.log('loading...')
   getWideFieldResults.results.downstream[id] = filterResults(res.outgoing_table, 'Downstream Partner ID');
 }
 
-getWideFieldResults.onreadystatechange = (res, id, direction) => {console.log('loaded')
+getWideFieldResults.onreadystatechange = (res, id, direction) => {
   if (!res) {
     return;
   }
@@ -280,7 +277,6 @@ getWideFieldResults.onreadystatechange = (res, id, direction) => {console.log('l
     case 4:
       getWideFieldResults.numberOfFinishedRequests++;
       statusColumn.style.color = '#00FF00';
-console.log('here', getWideFieldResults.numberOfFinishedRequests, getWideFieldResults.numberOfCells)
       if (getWideFieldResults.numberOfFinishedRequests === getWideFieldResults.numberOfCells) {
         setTimeout(getPartnersOfPartners.bind(null, getWideFieldResults.results, getWideFieldResults.type, getWideFieldResults.source), 0);
       }
