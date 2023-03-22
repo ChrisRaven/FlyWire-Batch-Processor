@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Batch Processor
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.6
+// @version      0.6.1
 // @description  Batch processing segments in FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -619,10 +619,37 @@ function getLabels(ids, callback) {
 // requires "./get_labels.js"
 
 function getStatuses(ids, callback) {
+  let params = []
+  const promises = []
+  for(let i = 0; i < ids.length; i++) {
+    params.push(ids[i])
+    if ((i > 0 && !(i % 60)) || i === ids.length - 1) {
+      promises.push(get60Statuses(params, callback))
+      params = []
+    }
+  }
+
+  Promise.all(promises).then(results => {
+    const filteredResults = {
+      id: [],
+      tag: [],
+      userName: [],
+      userAffiliation: []
+    }
+
+    results.forEach(result => {
+      getStatuses.results[id] = 'identified'
+    })
+  })
+}
+
+
+function get60Statuses(ids, callback) {
   getLabels(ids, results => {
     results.id.forEach(id => {
       getStatuses.results[id] = 'identified'
     })
+
     getCompletedNotIdentified(callback, ids, results)
   })
 }
@@ -635,10 +662,10 @@ function getCompletedNotIdentified(callback, allIds, identifiedSegments) {
   const notIdentified = Dock.arraySubtraction(allIds, identifiedAsStrings)
 
   let url = 'https://prod.flywire-daf.com/neurons/api/v1/proofreading_status?filter_by=root_id&as_json=1&ignore_bad_ids=True&filter_string='
-  url += notIdentified.join(',')
+  url += notIdentified.join('%2C')
   url += '&middle_auth_token='
   url += localStorage.getItem('auth_token')
-
+console.log('url', url)
   fetch(url)
     .then(res => res.text())
     .then(data => {
@@ -845,7 +872,7 @@ function actionsHandler(e) {
       break
 
     case 'find-common-partners-visible':
-      findCommon(QUICK_FIND ? hidden : visible)
+      findCommon(visible)
       break
 
     case 'show-neuropils-coverage-visible':
@@ -1429,8 +1456,8 @@ function prepareWideFieldResults(MAX_NUMBER_OF_RESULTS, results, numberOfSources
     position++
   })
 
-  if (QUICK_FIND) {
-    const ids = results.flatMap((el) => [...el.upstream, ...el.downstream])
+  if (QUICK_FIND && results) {
+    const ids = Array.from(results).flatMap((el) => [...el[1].downstream])
     console.log(ids.join('\r\n'))
   }
 

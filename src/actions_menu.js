@@ -162,7 +162,7 @@ function actionsHandler(e) {
       break
 
     case 'find-common-partners-visible':
-      findCommon(QUICK_FIND ? hidden : visible)
+      findCommon(visible)
       break
 
     case 'show-neuropils-coverage-visible':

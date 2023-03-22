@@ -310,8 +310,8 @@ function prepareWideFieldResults(MAX_NUMBER_OF_RESULTS, results, numberOfSources
     position++
   })
 
-  if (QUICK_FIND) {
-    const ids = results.flatMap((el) => [...el.upstream, ...el.downstream])
+  if (QUICK_FIND && results) {
+    const ids = Array.from(results).flatMap((el) => [...el[1].downstream])
     console.log(ids.join('\r\n'))
   }
 
