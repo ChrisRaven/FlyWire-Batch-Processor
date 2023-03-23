@@ -9,7 +9,7 @@ function showStatusesAndLabels(visible) {
 
 function displayDialogWindow(ids) {
   Dock.dialog({
-    width: 870,
+    width: 950,
     id: 'statuses-dialog',
     html: buildTable(ids),
     css: addStatusesCss(),
@@ -158,6 +158,8 @@ function fillLabels(data) {
 
 
 function fillStatuses(results) {
+  if (!results || !Object.keys(results)) return
+
   Object.entries(results).forEach(entry => {
     const id = entry[0]
     const className = entry[1]
