@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Batch Processor
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.6.1.1
+// @version      0.6.2
 // @description  Batch processing segments in FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -630,7 +630,7 @@ function getStatuses(ids, callback) {
   for(let i = 0; i < ids.length; i++) {
     params.push(ids[i])
     if ((i > 0 && !(i % 60)) || i === ids.length - 1) {
-      get60Statuses(params, callback, i)
+      get60Statuses(params, callback)
       params = []
     }
   }
@@ -641,7 +641,7 @@ getStatuses.numberOfAllIds
 getStatuses.numberOfProcessedIds
 
 
-function get60Statuses(ids, callback, indexOfLastIdInBatch) {
+function get60Statuses(ids, callback) {
   getLabels(ids, results => {
     results.id.forEach(id => {
       getStatuses.results[id] = 'identified'
@@ -662,9 +662,28 @@ function getCompletedNotIdentified(callback) {
   const notIdentified = Dock.arraySubtraction(getStatuses.allIds, identifiedIds)
 
   if (!notIdentified.length) return callback()
+  
+  getStatuses.numberOfAllCompletedNotIdentifiedIds = notIdentified.length
+  getStatuses.numberOfProcessedCompletedNotIdentifiedIds = 0
 
+  let params = []
+  for(let i = 0; i < notIdentified.length; i++) {
+    params.push(notIdentified[i])
+    if ((i > 0 && !(i % 60)) || i === notIdentified.length - 1) {
+      get60CompletedNotIdentified(params, callback)
+      params = []
+    }
+  }
+}
+
+
+getStatuses.numberOfAllCompletedNotIdentifiedIds
+getStatuses.numberOfProcessedCompletedNotIdentifiedIds
+
+
+function get60CompletedNotIdentified(params, callback) {
   let url = 'https://prod.flywire-daf.com/neurons/api/v1/proofreading_status?filter_by=root_id&as_json=1&ignore_bad_ids=True&filter_string='
-  url += notIdentified.join('%2C')
+  url += params.join('%2C')
   url += '&middle_auth_token='
   url += localStorage.getItem('auth_token')
 
@@ -673,19 +692,23 @@ function getCompletedNotIdentified(callback) {
     .then(data => {
       // if no data, then jump directly to the next stage with all the IDs,
       // that left after checking identified cells
-      if (!data) return getIncompleted(notIdentified, callback)
+      if (!data) return getIncompleted(params, callback)
 
       data = json_parse()(data)
       // as above
-      if (!data) return getIncompleted(notIdentified, callback)
+      if (!data) return getIncompleted(params, callback)
 
       const completedNotIdentifed = Object.values(data.pt_root_id).map(id => id.toString())
       completedNotIdentifed.forEach(id => {
         getStatuses.results[id] = 'completed'
       })
 
-      const notCompletedNotIdentified = Dock.arraySubtraction(notIdentified, completedNotIdentifed)
-      getIncompleted(notCompletedNotIdentified, callback)
+      getStatuses.numberOfProcessedCompletedNotIdentifiedIds += params.length
+
+      if (getStatuses.numberOfProcessedCompletedNotIdentifiedIds === getStatuses.numberOfAllCompletedNotIdentifiedIds) {
+        const notCompletedNotIdentified = Dock.arraySubtraction(getStatuses.allIds, Object.keys(getStatuses.results))
+        getIncompleted(notCompletedNotIdentified, callback)
+      }
     })
 }
 
@@ -1985,10 +2008,17 @@ function addHeaderBar() {
     <div id="statuses-header-bar">
       <label><input type="checkbox" id="statuses-select-all">Select all</label>
       <button id="statuses-copy-selected">Copy selected</button>
+      <button id="statuses-copy-identified">Copy identified</button>
+      <button id="statuses-copy-completed">Copy completed</button>
+      <button id="statuses-copy-incompleted">Copy incompleted</button>
+      <button id="statuses-copy-outdated">Copy outdated</button>
+    </div>
+    <div id="statuses-second-header-bar">
       <button id="statuses-remove-selected">Remove selected</button>
       <button id="statuses-remove-identified">Remove identified</button>
-      <button id="statuses-remove-unidentified">Remove unidentified</button>
-      <button id="statuses-remove-unfinished">Remove unfinished</button>
+      <button id="statuses-remove-completed">Remove completed</button>
+      <button id="statuses-remove-incompleted">Remove incompleted</button>
+      <button id="statuses-remove-outdated">Remove outdated</button>
     </div>
     <hr />
   `
@@ -2032,62 +2062,45 @@ function addStatusButtonsEvents() {
     })
   })
 
-  document.getElementById('statuses-copy-selected').addEventListener('click', e => {
-    const selected = []
-    document.querySelectorAll('.statuses-checkbox input:checked').forEach(checkbox => {
-      selected.push(checkbox.closest('tr').dataset.segId)
-    })
-
-    navigator.clipboard.writeText(selected.join(','))
-  })
   
-  document.getElementById('statuses-remove-selected').addEventListener('click', e => {
-    const container = document.querySelector('.item-container')
+  function copy(buttonId, selector) {
+    document.getElementById(buttonId).addEventListener('click', () => {
+      const table = document.getElementById('statuses-and-labels-table')
+      const selected = []
 
-    document.querySelectorAll('.statuses-checkbox input:checked').forEach(checkbox => {
-      const row = checkbox.closest('tr')
-      const id = row.dataset.segId
-      row?.remove()
-      container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
-    })
-  })
+      table.querySelectorAll(selector).forEach(checkbox => {
+        selected.push(checkbox.closest('tr').dataset.segId)
+      })
   
-  document.getElementById('statuses-remove-identified').addEventListener('click', e => {
-    const container = document.querySelector('.item-container')
-    const table = document.getElementById('statuses-and-labels-table')
-
-    table.querySelectorAll('.identified').forEach(checkbox => {
-      const row = checkbox.closest('tr')
-      const id = row.dataset.segId
-      row?.remove()
-      container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
+      navigator.clipboard.writeText(selected.join(','))
     })
-  })
+  }
+
+  copy('statuses-copy-selected', '.statuses-checkbox input:checked')
+  copy('statuses-copy-identified', '.identified')
+  copy('statuses-copy-completed', '.completed')
+  copy('statuses-copy-incompleted', '.incompleted')
+  copy('statuses-copy-outdated', '.outdated')
+
+
+  function remove(buttonId, selector) {
+    document.getElementById(buttonId).addEventListener('click', e => {
+      const container = document.querySelector('.item-container')
   
-  document.getElementById('statuses-remove-unidentified').addEventListener('click', e => {
-    const container = document.querySelector('.item-container')
-    const table = document.getElementById('statuses-and-labels-table')
-
-    table.querySelectorAll('.statuses-status:not(.identified):not(.outdated)').forEach(statusCell => {
-      const row = statusCell.closest('tr')
-      const id = row.dataset.segId
-      row?.remove()
-      container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
+      document.querySelectorAll(selector).forEach(checkbox => {
+        const row = checkbox.closest('tr')
+        const id = row.dataset.segId
+        row?.remove()
+        container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
+      })
     })
-  })
+  }
 
-  document.getElementById('statuses-remove-unfinished').addEventListener('click', e => {
-    const container = document.querySelector('.item-container')
-    const table = document.getElementById('statuses-and-labels-table')
-
-    table.querySelectorAll('.incompleted').forEach(statusCell => {
-      const row = statusCell.closest('tr')
-      const id = row.dataset.segId
-      row?.remove()
-      container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
-    })
-  })
-  
+  remove('statuses-remove-selected', '.statuses-checkbox input:checked')
+  remove('statuses-remove-identified', '.identified')
+  remove('statuses-remove-completed', '.completed')
+  remove('statuses-remove-incompleted', '.incompleted')
+  remove('statuses-remove-outdated', '.outdated')
 }
 
 
@@ -2146,8 +2159,17 @@ function addStatusesCss() {
       margin: 0 7px;
     }
 
-    #statuses-dialog #statuses-header-bar button {
+    #statuses-dialog #statuses-header-bar button,
+    #statuses-dialog #statuses-second-header-bar button {
       width: 140px;
+    }
+
+    #statuses-dialog #statuses-second-header-bar button {
+      margin-top: 10px;
+    }
+
+    #statuses-remove-selected {
+      margin-left: 98.5px;
     }
 
     #statuses-dialog th {

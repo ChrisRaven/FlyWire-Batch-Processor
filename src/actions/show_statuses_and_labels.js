@@ -26,10 +26,17 @@ function addHeaderBar() {
     <div id="statuses-header-bar">
       <label><input type="checkbox" id="statuses-select-all">Select all</label>
       <button id="statuses-copy-selected">Copy selected</button>
+      <button id="statuses-copy-identified">Copy identified</button>
+      <button id="statuses-copy-completed">Copy completed</button>
+      <button id="statuses-copy-incompleted">Copy incompleted</button>
+      <button id="statuses-copy-outdated">Copy outdated</button>
+    </div>
+    <div id="statuses-second-header-bar">
       <button id="statuses-remove-selected">Remove selected</button>
       <button id="statuses-remove-identified">Remove identified</button>
-      <button id="statuses-remove-unidentified">Remove unidentified</button>
-      <button id="statuses-remove-unfinished">Remove unfinished</button>
+      <button id="statuses-remove-completed">Remove completed</button>
+      <button id="statuses-remove-incompleted">Remove incompleted</button>
+      <button id="statuses-remove-outdated">Remove outdated</button>
     </div>
     <hr />
   `
@@ -73,62 +80,45 @@ function addStatusButtonsEvents() {
     })
   })
 
-  document.getElementById('statuses-copy-selected').addEventListener('click', e => {
-    const selected = []
-    document.querySelectorAll('.statuses-checkbox input:checked').forEach(checkbox => {
-      selected.push(checkbox.closest('tr').dataset.segId)
-    })
-
-    navigator.clipboard.writeText(selected.join(','))
-  })
   
-  document.getElementById('statuses-remove-selected').addEventListener('click', e => {
-    const container = document.querySelector('.item-container')
+  function copy(buttonId, selector) {
+    document.getElementById(buttonId).addEventListener('click', () => {
+      const table = document.getElementById('statuses-and-labels-table')
+      const selected = []
 
-    document.querySelectorAll('.statuses-checkbox input:checked').forEach(checkbox => {
-      const row = checkbox.closest('tr')
-      const id = row.dataset.segId
-      row?.remove()
-      container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
-    })
-  })
+      table.querySelectorAll(selector).forEach(checkbox => {
+        selected.push(checkbox.closest('tr').dataset.segId)
+      })
   
-  document.getElementById('statuses-remove-identified').addEventListener('click', e => {
-    const container = document.querySelector('.item-container')
-    const table = document.getElementById('statuses-and-labels-table')
-
-    table.querySelectorAll('.identified').forEach(checkbox => {
-      const row = checkbox.closest('tr')
-      const id = row.dataset.segId
-      row?.remove()
-      container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
+      navigator.clipboard.writeText(selected.join(','))
     })
-  })
+  }
+
+  copy('statuses-copy-selected', '.statuses-checkbox input:checked')
+  copy('statuses-copy-identified', '.identified')
+  copy('statuses-copy-completed', '.completed')
+  copy('statuses-copy-incompleted', '.incompleted')
+  copy('statuses-copy-outdated', '.outdated')
+
+
+  function remove(buttonId, selector) {
+    document.getElementById(buttonId).addEventListener('click', e => {
+      const container = document.querySelector('.item-container')
   
-  document.getElementById('statuses-remove-unidentified').addEventListener('click', e => {
-    const container = document.querySelector('.item-container')
-    const table = document.getElementById('statuses-and-labels-table')
-
-    table.querySelectorAll('.statuses-status:not(.identified):not(.outdated)').forEach(statusCell => {
-      const row = statusCell.closest('tr')
-      const id = row.dataset.segId
-      row?.remove()
-      container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
+      document.querySelectorAll(selector).forEach(checkbox => {
+        const row = checkbox.closest('tr')
+        const id = row.dataset.segId
+        row?.remove()
+        container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
+      })
     })
-  })
+  }
 
-  document.getElementById('statuses-remove-unfinished').addEventListener('click', e => {
-    const container = document.querySelector('.item-container')
-    const table = document.getElementById('statuses-and-labels-table')
-
-    table.querySelectorAll('.incompleted').forEach(statusCell => {
-      const row = statusCell.closest('tr')
-      const id = row.dataset.segId
-      row?.remove()
-      container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
-    })
-  })
-  
+  remove('statuses-remove-selected', '.statuses-checkbox input:checked')
+  remove('statuses-remove-identified', '.identified')
+  remove('statuses-remove-completed', '.completed')
+  remove('statuses-remove-incompleted', '.incompleted')
+  remove('statuses-remove-outdated', '.outdated')
 }
 
 
@@ -187,8 +177,17 @@ function addStatusesCss() {
       margin: 0 7px;
     }
 
-    #statuses-dialog #statuses-header-bar button {
+    #statuses-dialog #statuses-header-bar button,
+    #statuses-dialog #statuses-second-header-bar button {
       width: 140px;
+    }
+
+    #statuses-dialog #statuses-second-header-bar button {
+      margin-top: 10px;
+    }
+
+    #statuses-remove-selected {
+      margin-left: 98.5px;
     }
 
     #statuses-dialog th {
