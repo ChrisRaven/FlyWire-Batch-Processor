@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Batch Processor
 // @namespace    KrzysztofKruk-FlyWire
-// @version      0.6.2
+// @version      0.7
 // @description  Batch processing segments in FlyWire
 // @author       Krzysztof Kruk
 // @match        https://ngl.flywire.ai/*
@@ -733,6 +733,61 @@ function getIncompleted(ids, callback) {
 
 
 
+const batchProcessorOptions = [
+  ['optgroup', 'Change color for'],
+  ['visible', 'change-color-visible'],
+  ['all', 'change-color-all'],
+
+  ['optgroup', 'Find common partners for'],
+  ['visible', 'find-common-partners-visible'],
+
+  ['optgroup', 'Show neuropils coverage'],
+  ['visible', 'show-neuropils-coverage-visible'],
+  ['all', 'show-neuropils-coverage-all'],
+
+  ['optgroup', 'Show statuses & labels'],
+  ['visible', 'show-statuses-and-labels-visible'],
+  ['all', 'show-statuses-and-labels-all'],
+
+  ['optgroup', 'Get synaptic partners for'],
+  ['first visible', 'get-synaptic-partners'],
+
+  ['optgroup', 'Show only'],
+  ['identified', 'show-identified-only'],
+  ['completed', 'show-completed-only'],
+  ['incompleted', 'show-incompleted-only'],
+  ['outdated', 'Show outdated-only'],
+
+  ['optgroup', 'Hide'],
+  ['identified', 'hide-identified'],
+  ['completed', 'hide-completed'],
+  ['incompleted', 'hide-incompleted'],
+  ['outdated', 'hide-outdated'],
+
+  ['optgroup', 'Open in new tab'],
+  ['identified', 'open-identified-in-new-tab'],
+  ['completed', 'open-completed-in-new-tab'],
+  ['incompleted', 'open-incompleted-in-new-tab'],
+  ['outdated', 'open-outdated-in-new-tab'],
+  ['visible', 'open-visible-in-new-tab'],
+  ['hidden', 'open-hidden-in-new-tab'],
+
+  ['optgroup', 'Remove'],
+  ['identified', 'remove-identified'],
+  ['completed', 'remove-completed'],
+  ['incompleted', 'remove-incompleted'],
+  ['outdated', 'remove-outdated'],
+  ['visible', 'remove-visible'],
+  ['hidden', 'remove-hidden'],
+
+  ['optgroup', 'Copy'],
+  ['identified', 'copy-identified'],
+  ['completed', 'copy-completed'],
+  ['incompleted', 'copy-incompleted'],
+  ['outdated', 'copy-outdated'],
+  ['visible', 'copy-visible'],
+  ['hidden', 'copy-hidden']
+]
 
 
 function addActionsMenu() {
@@ -749,71 +804,23 @@ function addActionsMenu() {
   defaultOption.hidden = true
   menu.add(defaultOption)
 
-  const options = [
-    ['optgroup', 'Change color for'],
-    ['visible', 'change-color-visible'],
-    ['all', 'change-color-all'],
-
-    ['optgroup', 'Find common partners for'],
-    ['visible', 'find-common-partners-visible'],
-
-    ['optgroup', 'Show neuropils coverage'],
-    ['visible', 'show-neuropils-coverage-visible'],
-    ['all', 'show-neuropils-coverage-all'],
-
-    ['optgroup', 'Show statuses & labels'],
-    ['visible', 'show-statuses-and-labels-visible'],
-    ['all', 'show-statuses-and-labels-all'],
-
-    ['optgroup', 'Get synaptic partners for'],
-    ['first visible', 'get-synaptic-partners'],
-
-    ['optgroup', 'Show only'],
-    ['identified', 'show-identified-only'],
-    ['completed', 'show-completed-only'],
-    ['incompleted', 'show-incompleted-only'],
-    ['outdated', 'Show outdated-only'],
-
-    ['optgroup', 'Hide'],
-    ['identified', 'hide-identified'],
-    ['completed', 'hide-completed'],
-    ['incompleted', 'hide-incompleted'],
-    ['outdated', 'hide-outdated'],
-
-    ['optgroup', 'Open in new tab'],
-    ['identified', 'open-identified-in-new-tab'],
-    ['completed', 'open-completed-in-new-tab'],
-    ['incompleted', 'open-incompleted-in-new-tab'],
-    ['outdated', 'open-outdated-in-new-tab'],
-    ['visible', 'open-visible-in-new-tab'],
-    ['hidden', 'open-hidden-in-new-tab'],
-
-    ['optgroup', 'Remove'],
-    ['identified', 'remove-identified'],
-    ['completed', 'remove-completed'],
-    ['incompleted', 'remove-incompleted'],
-    ['outdated', 'remove-outdated'],
-    ['visible', 'remove-visible'],
-    ['hidden', 'remove-hidden'],
-
-    ['optgroup', 'Copy'],
-    ['identified', 'copy-identified'],
-    ['completed', 'copy-completed'],
-    ['incompleted', 'copy-incompleted'],
-    ['outdated', 'copy-outdated'],
-    ['visible', 'copy-visible'],
-    ['hidden', 'copy-hidden']
-  ]
+  const batchProcessorOptionsFromLS = Dock.ls.get('batch-processor-options')?.split(',')
 
   let optgroup
-  options.forEach(option => {
+  let optionsCounter = -1
+  batchProcessorOptions.forEach((option, i) => {
     if (option[0] === 'optgroup') {
+      if (!optionsCounter) { // if all options from a group were hidden
+        menu.lastElementChild.remove()
+      }
       optgroup = document.createElement('optgroup')
       optgroup.label = option[1]
       menu.add(optgroup)
+      optionsCounter = 0
     }
-    else {
+    else if (!batchProcessorOptionsFromLS || batchProcessorOptionsFromLS.includes(option[1])) {
       optgroup.appendChild(new Option(option[0], option[1]))
+      optionsCounter++
     }
   })
 
@@ -829,10 +836,81 @@ function addActionsEvents() {
   const menu = document.getElementById('kk-utilities-action-menu')
   if (!menu) return
 
+  menu.addEventListener('mousedown', e => {
+    if (!e.ctrlKey) return
+
+    e.preventDefault()
+
+    Dock.dialog({
+      id: 'batch-processor-option-selection',
+      html: addActionsEvents.getHtml(),
+      css: addActionsEvents.getCss(),
+      okCallback: addActionsEvents.okCallback,
+      okLabel: 'Save',
+      cancelCallback: () => {},
+      cancelLabel: 'Close'
+    }).show()
+  })
+
   menu.addEventListener('change', e => {
     actionsHandler(e)
     menu.selectedIndex = 0
   })
+}
+
+addActionsEvents.getHtml = function () {
+  let html = '<table id="batch-processor-options-table">'
+  const batchProcessorOptionsFromLS = Dock.ls.get('batch-processor-options')?.split(',')
+
+  batchProcessorOptions.forEach(option => {
+    if (option[0] === 'optgroup') {
+      html += `<tr><td class="batch-processor-options-header">${option[1]}</td></tr>`
+    }
+    else {
+      const checked = !batchProcessorOptionsFromLS || batchProcessorOptionsFromLS.includes(option[1])
+
+      html += `<tr><td class="batch-processor-options-option" data-option="${option[1]}"><label><input type="checkbox" ${checked ? 'checked' : ''}>${option[0]}</label></td></tr>`
+    }
+  })
+
+  html += '</table>'
+
+  return html
+}
+
+addActionsEvents.getCss = function () {
+  return /*css*/`
+    #batch-processor-options-table {
+      font-size: 12px;
+    }
+
+    .batch-processor-options-header {
+      font-weight: bold;
+      color: #aaa;
+    }
+
+    .batch-processor-options-option {
+      padding-left: 10px;
+    }
+
+    #batch-processor-option-selection div.content {
+      height: 85vh;
+      overflow-y: auto;
+    }
+  `
+}
+
+addActionsEvents.okCallback = function () {
+  const optionsSelector = '#batch-processor-options-table .batch-processor-options-option'
+
+  const selectedOptions = []
+  document.querySelectorAll(optionsSelector).forEach(option => {
+    if (option.firstChild.firstChild.checked) {
+      selectedOptions.push(option.dataset.option)
+    }
+  })
+
+  Dock.ls.set('batch-processor-options', selectedOptions)
 }
 
 
