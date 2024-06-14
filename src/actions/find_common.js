@@ -1,11 +1,17 @@
-const findCommon = (type) => {
-  let ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
-  findCommon.idsLength = Math.min(ids.length, MAX_NUMBER_OF_SOURCES)
-  
-  if (!ids || !findCommon.idsLength) return console.error('No segments selected')
+let findImmediatePartners = false
+const MAX_IMMEDIATE_PARTNERS = 30
+const findCommon = (type, immediate = false) => {
+  if (immediate) {
+    findImmediatePartners = true
+  }
 
-  findCommon.numberOfSources = Math.min(ids.length, MAX_NUMBER_OF_SOURCES)
-  ids = ids.slice(0, MAX_NUMBER_OF_SOURCES)
+  let ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
+  findCommon.idsLength = Math.min(ids.length, findImmediatePartners ? MAX_IMMEDIATE_PARTNERS : MAX_NUMBER_OF_SOURCES)
+  
+  if (!ids || !findCommon.idsLength) return error('No segments selected')
+
+  findCommon.numberOfSources = Math.min(ids.length, findImmediatePartners ? MAX_IMMEDIATE_PARTNERS : MAX_NUMBER_OF_SOURCES)
+  ids = ids.slice(0, findImmediatePartners ? MAX_IMMEDIATE_PARTNERS : MAX_NUMBER_OF_SOURCES)
 
   Dock.dialog({
     id: 'kk-find-common-dialog',
@@ -77,15 +83,17 @@ function findCommon_getHtml(ids) {
         </tr>
       `).join('')}
     </table>
-
+    ${DEV ? '<button id="kk-find-common-clear-stored">Clear stored</button>' : ''}
     <div id="kk-find-common-results-wrapper-wrapper">
       <hr />
       <div class="kk-find-common-results-wrapper">
         <div>Common upstream partners</div>
+        <label><input type="checkbox" id="kk-find-common-upstream-select-all">Select all</label>
         <table id="kk-find-common-upstream-summary"></table>
       </div>
       <div class="kk-find-common-results-wrapper">
         <div>Common downstream partners</div>
+        <label><input type="checkbox" id="kk-find-common-downstream-select-all">Select all</label>
         <table id="kk-find-common-downstream-summary"></table>
       </div>
       <hr />
@@ -180,6 +188,28 @@ function findCommon_addEventListeners() {
   addListener('kk-find-common-get-common', 'common', 'both')
 
   document.getElementById('kk-find-common-copy-results').addEventListener('click', copySelectedWideFieldResults)
+
+  function selectAll(direction) {
+    document.getElementById(`kk-find-common-${direction}stream-select-all`).addEventListener('click', e => {
+      const checked = e.target.checked
+      document.querySelectorAll(`#kk-find-common-${direction}stream-summary input[type="checkbox"]:not([disabled])`).forEach(el => {
+        el.checked = checked
+      })
+    })
+  }
+
+  selectAll('up')
+  selectAll('down')
+
+  if (DEV) {
+    document.getElementById('kk-find-common-clear-stored').addEventListener('click', e => {
+      localStorage.removeItem('stored-ids-down-upstream')
+      localStorage.removeItem('stored-ids-up-downstream')
+      document.querySelectorAll('#kk-find-common-results-wrapper-wrapper .result-id input[type="checkbox"]').forEach(checkbox => {
+        checkbox.disabled = false
+      })
+    })
+  }
 }
 
 
@@ -190,7 +220,7 @@ function copySelectedWideFieldResults() {
     ids.push(el.parentElement.parentElement.dataset.id)
   })
 
-  navigator.clipboard.writeText(ids).then(() => {
+  navigator.clipboard.writeText(ids.join('\r\n')).then(() => {
     Dock.dialog({
       id: 'kk-find-common-copy-results-direct',
       html: 'The IDs have been copied to clipboard',
@@ -205,6 +235,10 @@ const getWideFieldResults = (type, source) => {
   getWideFieldResults.type = type
   getWideFieldResults.source = source
   getWideFieldResults.numberOfFinishedRequests = 0
+  getWideFieldResults.results = {
+    upstream: {},
+    downstream: {}
+  }
 
   const resultIds = document.getElementsByClassName('result-id');
   for (let i = 0; i < resultIds.length; i++) {
@@ -228,23 +262,6 @@ const getWideFieldResults = (type, source) => {
     return;
   }
   getWideFieldResults.numberOfCells = ids.length
-
-  const requests = ids.map(id => getConnectivity(id));
-  Promise.all(requests)
-    .then(() => {
-      const wrapperWrapper = document.getElementById('kk-find-common-results-wrapper-wrapper')
-      if (wrapperWrapper) {
-        wrapperWrapper.style.display = 'block'
-      }
-    })
-    .catch(error => {
-      console.error(error);
-    });
-}
-
-getWideFieldResults.results = {
-  upstream: {},
-  downstream: {}
 }
 
 
@@ -310,31 +327,58 @@ function prepareWideFieldResults(MAX_NUMBER_OF_RESULTS, results, numberOfSources
     position++
   })
 
-  if (QUICK_FIND && results) {
+  if ((QUICK_FIND || findImmediatePartners) && results) {
     const ids = Array.from(results).flatMap((el) => [...el[1].downstream])
-    console.log(ids.join('\r\n'))
+    ids.push(...Array.from(results).flatMap((el) => [...el[1].upstream]))
+    Dock.dialog({
+      id: 'kk-find-common-quick-find-dialog',
+      html: `Found ${ids.length} IDs`,
+      okCallback: () => {
+        navigator.clipboard.writeText(ids.join('\r\n')).then(() => {
+          Dock.dialog({
+            id: 'kk-find-common-quick-find-copied-dialog',
+            html: 'IDs copied to clipboard',
+            okLabel: 'OK',
+            okCallback: () => {},
+            destroyAfterClosing: true
+          }).show()
+        })
+      },
+      okLabel: 'Copy',
+      cancelCallback: () => {},
+      cancelLabel: 'Cancel',
+      destroyAfterClosing: true
+    }).show()
   }
+  else {
+    const countOccurences = (data) => {
+      return Object.entries(data).map(([id, state]) => {
+        const sum = state.reduce((sum, value) => sum + value, 0)
+        return { id, sum }
+      }).sort((a, b) => b.sum - a.sum)
+    }
 
-  const countOccurences = (data) => {
-    return Object.entries(data).map(([id, state]) => {
-      const sum = state.reduce((sum, value) => sum + value, 0)
-      return { id, sum }
-    }).sort((a, b) => b.sum - a.sum)
+    const numberOfOccurencesUpstream = countOccurences(upstream)
+    const numberOfOccurencesDownstream = countOccurences(downstream)
+
+    const tableUpstream = document.getElementById('kk-find-common-upstream-summary')
+    const tableDownstream = document.getElementById('kk-find-common-downstream-summary')
+    tableUpstream.innerHTML = generateWideFieldResultsHtml(numberOfOccurencesUpstream, upstream, 'up')
+    tableDownstream.innerHTML = generateWideFieldResultsHtml(numberOfOccurencesDownstream, downstream, 'down')
   }
-
-  const numberOfOccurencesUpstream = countOccurences(upstream)
-  const numberOfOccurencesDownstream = countOccurences(downstream)
-
-  const tableUpstream = document.getElementById('kk-find-common-upstream-summary')
-  const tableDownstream = document.getElementById('kk-find-common-downstream-summary')
-  tableUpstream.innerHTML = generateWideFieldResultsHtml(numberOfOccurencesUpstream, upstream, 'up')
-  tableDownstream.innerHTML = generateWideFieldResultsHtml(numberOfOccurencesDownstream, downstream, 'down')
 }
 
 
 
 function generateWideFieldResultsHtml(occurences, sources, streamDirection) {
   let html = '';
+
+  // the switched directions isn't an error - it's source vs destination
+  const storedDirection = streamDirection === 'up' ? 'up-downstream' : 'down-upstream'
+  let storedIds = localStorage.getItem('stored-ids-' + storedDirection)
+  if (storedIds) {
+    storedIds = storedIds.split(',')
+  }
 
   for (let i = 0; i < MAX_NUMBER_OF_RESULTS; i++) {
     const id = occurences[i].id;
@@ -345,11 +389,17 @@ function generateWideFieldResultsHtml(occurences, sources, streamDirection) {
       sourcesHtml += `<td class="result-color" style="background-color: ${bgColor}"></td>`;
     });
 
+
+    let disabled = ''
+    if (storedIds && storedIds.length) {
+      disabled = storedIds.includes(id) ? 'disabled' : ''
+    }
+
     const resultId = `result-id-${id}-${streamDirection}`;
     html += `
       <tr>
         <td id="${resultId}" class="result-id ${streamDirection}" data-id="${id}">
-          <label><input type="checkbox">${id}</label>
+          <label><input type="checkbox" ${disabled}>${id}</label>
         </td>
         ${sourcesHtml}
       </tr>`;
@@ -380,11 +430,19 @@ function getPartnersOfPartners(results, type, source) {
   let tableToAnalyze = [];
   let numberOfTables = 0;
 
+  const ids = []
+
   if (source === 'upstream' || source === 'both') {
     Object.values(results.upstream).forEach(partners => {
       tableToAnalyze.push(...partners);
       numberOfTables++;
     });
+
+    for (const [key, value] of Object.entries(results.upstream)) {
+      if (value.length) {
+        ids.push(key)
+      }
+    }
   }
   
   if (source === 'downstream' || source === 'both') {
@@ -395,6 +453,12 @@ function getPartnersOfPartners(results, type, source) {
         numberOfTables++;
       }
     });
+
+    for (const [key, value] of Object.entries(results.downstream)) {
+      if (value.length) {
+        ids.push(key)
+      }
+    }
   }
 
   if (type === 'common') {
@@ -408,7 +472,8 @@ function getPartnersOfPartners(results, type, source) {
         partnersResults.push(id);
       }
     });
-  } else {
+  }
+  else {
     partnersResults = [...new Set(tableToAnalyze)];
   }
 
@@ -416,7 +481,11 @@ function getPartnersOfPartners(results, type, source) {
 
   const dialogContent = `Found ${partnersResults.length} result(s)<br />Click the "Copy" button to copy the results to clipboard`;
   const okCallback = () => {
-    navigator.clipboard.writeText(partnersResults).then(() => {
+    if (DEV) {
+      markChecked_DEV(source, ids)
+    }
+
+    navigator.clipboard.writeText(partnersResults.join('\r\n')).then(() => {
       Dock.dialog({
         id: 'kk-copy-common-copied-confirm',
         html: 'IDs have been copied to clipboard',
@@ -434,5 +503,50 @@ function getPartnersOfPartners(results, type, source) {
     cancelCallback: () => {},
     cancelLabel: 'Close'
   }).show();
+}
+
+
+function markChecked_DEV(source, ids) {
+  // downstream of upstream
+  if (source === 'downstream' || source === 'both') {
+    let storedIds = localStorage.getItem('stored-ids-up-downstream')
+    if (storedIds) {
+      storedIds = storedIds.split(',')
+      storedIds.push(...ids)
+    }
+    else {
+      storedIds = ids
+    }
+    localStorage.setItem('stored-ids-up-downstream', storedIds)
+
+    document.querySelectorAll('#kk-find-common-upstream-summary input[type="checkbox"]').forEach(checkbox => {
+      const id = checkbox.closest('td').dataset.id
+      if (storedIds.includes(id)) {
+        checkbox.checked = false
+        checkbox.disabled = true
+      }
+    })
+  }
+
+  // upstream of downstream
+  if (source === 'upstream' || source === 'both') {
+    let storedIds = localStorage.getItem('stored-ids-down-upstream')
+    if (storedIds) {
+      storedIds = storedIds.split(',')
+      storedIds.push(...ids)
+    }
+    else {
+      storedIds = ids
+    }
+    localStorage.setItem('stored-ids-down-upstream', storedIds)
+
+    document.querySelectorAll('#kk-find-common-downstream-summary input[type="checkbox"]').forEach(checkbox => {
+      const id = checkbox.closest('td').dataset.id
+      if (storedIds.includes(id)) {
+        checkbox.checked = false
+        checkbox.disabled = true
+      }
+    })
+  }
 }
 

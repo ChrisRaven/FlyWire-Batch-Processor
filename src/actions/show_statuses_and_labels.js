@@ -38,7 +38,9 @@ function addHeaderBar() {
       <button id="statuses-remove-incompleted">Remove incompleted</button>
       <button id="statuses-remove-outdated">Remove outdated</button>
     </div>
+    <button id="statuses-update-outdated">Update outdated</button>
     <hr />
+
   `
 }
 
@@ -90,7 +92,7 @@ function addStatusButtonsEvents() {
         selected.push(checkbox.closest('tr').dataset.segId)
       })
   
-      navigator.clipboard.writeText(selected.join(','))
+      navigator.clipboard.writeText(selected.join('\r\n'))
     })
   }
 
@@ -105,8 +107,8 @@ function addStatusButtonsEvents() {
     document.getElementById(buttonId).addEventListener('click', e => {
       const container = document.querySelector('.item-container')
   
-      document.querySelectorAll(selector).forEach(checkbox => {
-        const row = checkbox.closest('tr')
+      document.getElementById('statuses-and-labels-table').querySelectorAll(selector).forEach(cell => {
+        const row = cell.closest('tr')
         const id = row.dataset.segId
         row?.remove()
         container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
@@ -153,7 +155,8 @@ function fillStatuses(results) {
   Object.entries(results).forEach(entry => {
     const id = entry[0]
     const className = entry[1]
-    document.querySelector(`#status-for-${id} .statuses-status`)?.classList.add(className)
+    const statusCell = document.querySelector(`#status-for-${id} .statuses-status`)
+    statusCell.classList.add(className)
   })
 }
 

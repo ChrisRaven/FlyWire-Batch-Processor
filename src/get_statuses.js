@@ -78,7 +78,7 @@ function get60CompletedNotIdentified(params, callback) {
 
       data = json_parse()(data)
       // as above
-      if (!data) return getIncompleted(params, callback)
+      if (!data || !data.pt_root_id) return getIncompleted(params, callback)
 
       const completedNotIdentifed = Object.values(data.pt_root_id).map(id => id.toString())
       completedNotIdentifed.forEach(id => {

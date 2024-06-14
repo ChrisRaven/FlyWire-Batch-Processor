@@ -85,7 +85,7 @@ function addButtonsEvents(segments) {
       selected.push(checkbox.parentElement?.parentElement?.dataset.segId)
     })
 
-    navigator.clipboard.writeText(selected)
+    navigator.clipboard.writeText(selected.join('\r\n'))
   })
 
   document.getElementById('neuropils-hide-selected')?.addEventListener('click', e => {

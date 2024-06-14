@@ -4,7 +4,7 @@ const batchProcessorOptions = [
   ['all', 'change-color-all'],
 
   ['optgroup', 'Find common partners for'],
-  ['visible', 'find-common-partners-visible'],
+  ['visible (first 10)', 'find-common-partners-visible'],
 
   ['optgroup', 'Show neuropils coverage'],
   ['visible', 'show-neuropils-coverage-visible'],
@@ -53,6 +53,11 @@ const batchProcessorOptions = [
   ['visible', 'copy-visible'],
   ['hidden', 'copy-hidden']
 ]
+
+if (DEV) {
+  batchProcessorOptions.push(['optgroup', 'DEV'])
+  batchProcessorOptions.push(['Get syn. partners (first 30v)', 'find-partners-visible'])
+}
 
 
 function addActionsMenu() {
@@ -241,6 +246,10 @@ function actionsHandler(e) {
 
     case 'find-common-partners-visible':
       findCommon(visible)
+      break
+
+    case 'find-partners-visible': // DEV only
+      findCommon(visible, true)
       break
 
     case 'show-neuropils-coverage-visible':

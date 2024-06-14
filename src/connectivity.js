@@ -1,4 +1,3 @@
-
 function dataRequestForConnectivity(id) {
   return JSON.stringify({
     output: '..post_submit_download__summary.children...post_submit_download__upstream.children...post_submit_download__downstream.children...post_submit_linkbuilder_buttons.children...summary_table.columns...summary_table.data...incoming_table.columns...incoming_table.data...outgoing_table.columns...outgoing_table.data...graph_div.children...message_text.value...message_text.rows...submit_loader.children..',
@@ -44,40 +43,66 @@ function dataRequestForConnectivity(id) {
 }
 
 
-function getConnectivity(id, onloadCallback, onreadystatechangeCallback, onerrorCallback, direction = 'up') {
+function getConnectivity_headers() {
   const authToken = localStorage.getItem('auth_token')
 
-  GM_xmlhttpRequest({
-    method: 'POST',
+  return {
+    accept: 'application/json',
+    'content-type': 'application/json',
+    cookie: 'middle_auth_token=' + authToken
+  }
+}
 
-    url: 'https://prod.flywire-daf.com/dash/datastack/flywire_fafb_production/apps/fly_connectivity/_dash-update-component',
 
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      cookie: 'middle_auth_token=' + authToken
-    },
+function getConnectivity(id, onloadCallback, onreadystatechangeCallback, onerrorCallback, direction = 'up') {
+  let retry = 5
 
-    data: dataRequestForConnectivity(id),
+  function getData() {
+    GM_xmlhttpRequest({
+      method: 'POST',
+      url: 'https://prod.flywire-daf.com/dash/datastack/flywire_fafb_production/apps/fly_connectivity/_dash-update-component',
+      headers: getConnectivity_headers(),
+      data: dataRequestForConnectivity(id),
 
-    onload: res => {
-      if (!res) return console.error('Error retrieving data for ' + id)
+      onload: res => {
+        if (!res) return console.error('Error retrieving data for ' + id)
 
-      if (onloadCallback && typeof onloadCallback === 'function') {
-        onloadCallback(res, id, direction)
+        if (onloadCallback && typeof onloadCallback === 'function') {
+          onloadCallback(res, id, direction)
+        }
+      },
+
+      onreadystatechange: res => {
+        if (onreadystatechangeCallback && typeof onreadystatechangeCallback === 'function') {
+          onreadystatechangeCallback(res, id, direction)
+        }
+      },
+
+      ontimeout: res => {
+        if (onerrorCallback && typeof onerrorCallback === 'function') {
+          if (retry--) {
+            getData()
+            console.log('retrying')
+          }
+          else {
+            onerrorCallback(res, id, direction)
+          }
+        }
+      },
+
+      onerror: res => {
+        if (onerrorCallback && typeof onerrorCallback === 'function') {
+          if (retry--) {
+            getData()
+            console.log('retrying')
+          }
+          else {
+            onerrorCallback(res, id, direction)
+          }
+        }
       }
-    },
-
-    onreadystatechange: res => {
-      if (onreadystatechangeCallback && typeof onreadystatechangeCallback === 'function') {
-        onreadystatechangeCallback(res, id, direction)
-      }
-    },
-
-    onerror: res => {
-      if (onerrorCallback && typeof onerrorCallback === 'function') {
-        onerrorCallback(res, id, direction)
-      }
-    }
-  })
+    })
+  }
+  
+  getData()
 }

@@ -13,7 +13,6 @@
 // @homepageURL  https://github.com/ChrisRaven/FlyWire-Batch-Processor
 // ==/UserScript==
 
-
 if (!document.getElementById('dock-script')) {
   let script = document.createElement('script')
   script.id = 'dock-script'
@@ -32,7 +31,6 @@ const QUICK_FIND = false // to quickly display both up- and downstream partners 
 const MAX_NUMBER_OF_SOURCES = QUICK_FIND ? 30 : 10
 const MAX_NUMBER_OF_RESULTS = 20
 const FIND_COMMON_COLORS = ['#f8e266', '#9de0f9', '#eed1e4', '#a1ec46', '#fc3cb2', '#9b95cf', '#4c7dbc', '#ca5af6', '#f0ae42', '#2df6af'];
-
 
 // regexpxs extracted from
 // (c) BSD-3-Clause
@@ -471,7 +469,6 @@ var json_parse = function (options) {
 
 
 
-
 // as a function to delay it until the Dock is loaded
 function addPickr() {
 
@@ -488,7 +485,6 @@ function addPickr() {
   
   
   }
-
 function dataRequestForConnectivity(id) {
   return JSON.stringify({
     output: '..post_submit_download__summary.children...post_submit_download__upstream.children...post_submit_download__downstream.children...post_submit_linkbuilder_buttons.children...summary_table.columns...summary_table.data...incoming_table.columns...incoming_table.data...outgoing_table.columns...outgoing_table.data...graph_div.children...message_text.value...message_text.rows...submit_loader.children..',
@@ -534,42 +530,68 @@ function dataRequestForConnectivity(id) {
 }
 
 
-function getConnectivity(id, onloadCallback, onreadystatechangeCallback, onerrorCallback, direction = 'up') {
+function getConnectivity_headers() {
   const authToken = localStorage.getItem('auth_token')
 
-  GM_xmlhttpRequest({
-    method: 'POST',
+  return {
+    accept: 'application/json',
+    'content-type': 'application/json',
+    cookie: 'middle_auth_token=' + authToken
+  }
+}
 
-    url: 'https://prod.flywire-daf.com/dash/datastack/flywire_fafb_production/apps/fly_connectivity/_dash-update-component',
 
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      cookie: 'middle_auth_token=' + authToken
-    },
+function getConnectivity(id, onloadCallback, onreadystatechangeCallback, onerrorCallback, direction = 'up') {
+  let retry = 5
 
-    data: dataRequestForConnectivity(id),
+  function getData() {
+    GM_xmlhttpRequest({
+      method: 'POST',
+      url: 'https://prod.flywire-daf.com/dash/datastack/flywire_fafb_production/apps/fly_connectivity/_dash-update-component',
+      headers: getConnectivity_headers(),
+      data: dataRequestForConnectivity(id),
 
-    onload: res => {
-      if (!res) return console.error('Error retrieving data for ' + id)
+      onload: res => {
+        if (!res) return console.error('Error retrieving data for ' + id)
 
-      if (onloadCallback && typeof onloadCallback === 'function') {
-        onloadCallback(res, id, direction)
+        if (onloadCallback && typeof onloadCallback === 'function') {
+          onloadCallback(res, id, direction)
+        }
+      },
+
+      onreadystatechange: res => {
+        if (onreadystatechangeCallback && typeof onreadystatechangeCallback === 'function') {
+          onreadystatechangeCallback(res, id, direction)
+        }
+      },
+
+      ontimeout: res => {
+        if (onerrorCallback && typeof onerrorCallback === 'function') {
+          if (retry--) {
+            getData()
+            console.log('retrying')
+          }
+          else {
+            onerrorCallback(res, id, direction)
+          }
+        }
+      },
+
+      onerror: res => {
+        if (onerrorCallback && typeof onerrorCallback === 'function') {
+          if (retry--) {
+            getData()
+            console.log('retrying')
+          }
+          else {
+            onerrorCallback(res, id, direction)
+          }
+        }
       }
-    },
-
-    onreadystatechange: res => {
-      if (onreadystatechangeCallback && typeof onreadystatechangeCallback === 'function') {
-        onreadystatechangeCallback(res, id, direction)
-      }
-    },
-
-    onerror: res => {
-      if (onerrorCallback && typeof onerrorCallback === 'function') {
-        onerrorCallback(res, id, direction)
-      }
-    }
-  })
+    })
+  }
+  
+  getData()
 }
 
 function get60Labels(ids) {
@@ -696,7 +718,7 @@ function get60CompletedNotIdentified(params, callback) {
 
       data = json_parse()(data)
       // as above
-      if (!data) return getIncompleted(params, callback)
+      if (!data || !data.pt_root_id) return getIncompleted(params, callback)
 
       const completedNotIdentifed = Object.values(data.pt_root_id).map(id => id.toString())
       completedNotIdentifed.forEach(id => {
@@ -731,6 +753,109 @@ function getIncompleted(ids, callback) {
     })
 }
 
+class RequestPool {
+  constructor() {
+    this.limit = 30;
+    this.maxRetries = 1000;
+    this.timeout = 2 * 60 * 1000;
+    this.retryAfterError = 10 * 1000;
+    this.queue = [];
+    this.runningCount = 0;
+    this.results = [];
+    this.counter = 0;
+    this.requestsCompleted = 0;
+    this.requestsTotal = 0;
+    this.resolveAll = null;
+    this.callbackCalled = false;
+  }
+
+  makeRequest(id) {
+    return new Promise((resolve, reject) => {
+      const requestTimeout = this.timeout || null;
+      GM_xmlhttpRequest({
+        method: 'POST',
+        url: 'https://prod.flywire-daf.com/dash/datastack/flywire_fafb_production/apps/fly_connectivity/_dash-update-component',
+        headers: getConnectivity_headers(),
+        data: dataRequestForConnectivity(id),
+        timeout: this.timeout,
+        onload: (response) => {
+          if (response.status >= 200 && response.status < 300) {
+            resolve(response);
+          } else {
+            reject(new Error(`Request failed with status ${response.status}`));
+          }
+        },
+        onerror: (error) => {
+          reject(error);
+        },
+        ontimeout: () => {
+          reject(new Error(`Request timed out ${id}`));
+        }
+      });
+    });
+  }
+
+  addRequest(id) {
+    return new Promise((resolve, reject) => {
+      const request = async (retries = 0) => {
+        try {
+          const response = await this.makeRequest(id);
+          if (response.status === 200) {
+            const responseBody = response.responseText;
+            this.results.push(responseBody);
+            this.counter++;
+            this.requestsCompleted++;
+            console.log(`${this.requestsCompleted}/${this.requestsTotal} finished [${id}]`);
+            resolve(responseBody);
+          } else {
+            if (retries < this.maxRetries) {
+              request(retries + 1);
+            } else {
+              this.counter++;
+              this.requestsCompleted++;
+              console.log(`${this.requestsCompleted}/${this.requestsTotal} finished [${id}]`);
+              reject(new Error('Request failed'));
+            }
+          }
+        } catch (error) {
+          if (retries < this.maxRetries) {
+            setTimeout(() => { request(retries + 1) }, this.retryAfterError)
+          } else {
+            this.counter++;
+            this.requestsCompleted++;
+            console.log(`%c${this.requestsCompleted}/${this.requestsTotal} finished [${id}]`, 'color: red');
+            reject(error);
+          }
+        } finally {
+          this.runningCount--;
+          this.processNextRequest();
+        }
+      };
+
+      if (this.runningCount < this.limit) {
+        this.runningCount++;
+        request();
+      } else {
+        this.queue.push(request);
+      }
+    });
+  }
+
+  processNextRequest() {
+    if (this.queue.length > 0 && this.runningCount < this.limit) {
+      const request = this.queue.shift();
+      this.runningCount++;
+      request();
+    }
+  }
+
+  runAllRequests(ids) {
+    this.ids = ids;
+    this.requestsTotal = ids.length;
+    const promises = ids.map(id => this.addRequest(id));
+    return Promise.allSettled(promises);
+  }
+}
 
 
 const batchProcessorOptions = [
@@ -739,7 +864,7 @@ const batchProcessorOptions = [
   ['all', 'change-color-all'],
 
   ['optgroup', 'Find common partners for'],
-  ['visible', 'find-common-partners-visible'],
+  ['visible (first 10)', 'find-common-partners-visible'],
 
   ['optgroup', 'Show neuropils coverage'],
   ['visible', 'show-neuropils-coverage-visible'],
@@ -788,6 +913,11 @@ const batchProcessorOptions = [
   ['visible', 'copy-visible'],
   ['hidden', 'copy-hidden']
 ]
+
+if (DEV) {
+  batchProcessorOptions.push(['optgroup', 'DEV'])
+  batchProcessorOptions.push(['Get syn. partners (first 30v)', 'find-partners-visible'])
+}
 
 
 function addActionsMenu() {
@@ -978,6 +1108,10 @@ function actionsHandler(e) {
       findCommon(visible)
       break
 
+    case 'find-partners-visible': // DEV only
+      findCommon(visible, true)
+      break
+
     case 'show-neuropils-coverage-visible':
       showNeuropilsCoverage(visible)
       break
@@ -1081,7 +1215,6 @@ function actionsHandler(e) {
   }
 }
 
-
 function hide(type) {
   type.forEach(segment => {
     const checkbox = segment.getElementsByClassName('segment-checkbox')[0]
@@ -1184,7 +1317,7 @@ function remove(type) {
 function copy(type) {
   const ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
 
-  navigator.clipboard.writeText(ids.join())
+  navigator.clipboard.writeText(ids.join('\r\n'))
 }
 
 function changeColor(type) {
@@ -1247,14 +1380,20 @@ function changeColor(type) {
   }
 }
 
-const findCommon = (type) => {
-  let ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
-  findCommon.idsLength = Math.min(ids.length, MAX_NUMBER_OF_SOURCES)
-  
-  if (!ids || !findCommon.idsLength) return console.error('No segments selected')
+let findImmediatePartners = false
+const MAX_IMMEDIATE_PARTNERS = 30
+const findCommon = (type, immediate = false) => {
+  if (immediate) {
+    findImmediatePartners = true
+  }
 
-  findCommon.numberOfSources = Math.min(ids.length, MAX_NUMBER_OF_SOURCES)
-  ids = ids.slice(0, MAX_NUMBER_OF_SOURCES)
+  let ids = type.map(segment => segment.getElementsByClassName('segment-button')[0].dataset.segId)
+  findCommon.idsLength = Math.min(ids.length, findImmediatePartners ? MAX_IMMEDIATE_PARTNERS : MAX_NUMBER_OF_SOURCES)
+  
+  if (!ids || !findCommon.idsLength) return error('No segments selected')
+
+  findCommon.numberOfSources = Math.min(ids.length, findImmediatePartners ? MAX_IMMEDIATE_PARTNERS : MAX_NUMBER_OF_SOURCES)
+  ids = ids.slice(0, findImmediatePartners ? MAX_IMMEDIATE_PARTNERS : MAX_NUMBER_OF_SOURCES)
 
   Dock.dialog({
     id: 'kk-find-common-dialog',
@@ -1326,15 +1465,17 @@ function findCommon_getHtml(ids) {
         </tr>
       `).join('')}
     </table>
-
+    ${DEV ? '<button id="kk-find-common-clear-stored">Clear stored</button>' : ''}
     <div id="kk-find-common-results-wrapper-wrapper">
       <hr />
       <div class="kk-find-common-results-wrapper">
         <div>Common upstream partners</div>
+        <label><input type="checkbox" id="kk-find-common-upstream-select-all">Select all</label>
         <table id="kk-find-common-upstream-summary"></table>
       </div>
       <div class="kk-find-common-results-wrapper">
         <div>Common downstream partners</div>
+        <label><input type="checkbox" id="kk-find-common-downstream-select-all">Select all</label>
         <table id="kk-find-common-downstream-summary"></table>
       </div>
       <hr />
@@ -1429,6 +1570,28 @@ function findCommon_addEventListeners() {
   addListener('kk-find-common-get-common', 'common', 'both')
 
   document.getElementById('kk-find-common-copy-results').addEventListener('click', copySelectedWideFieldResults)
+
+  function selectAll(direction) {
+    document.getElementById(`kk-find-common-${direction}stream-select-all`).addEventListener('click', e => {
+      const checked = e.target.checked
+      document.querySelectorAll(`#kk-find-common-${direction}stream-summary input[type="checkbox"]:not([disabled])`).forEach(el => {
+        el.checked = checked
+      })
+    })
+  }
+
+  selectAll('up')
+  selectAll('down')
+
+  if (DEV) {
+    document.getElementById('kk-find-common-clear-stored').addEventListener('click', e => {
+      localStorage.removeItem('stored-ids-down-upstream')
+      localStorage.removeItem('stored-ids-up-downstream')
+      document.querySelectorAll('#kk-find-common-results-wrapper-wrapper .result-id input[type="checkbox"]').forEach(checkbox => {
+        checkbox.disabled = false
+      })
+    })
+  }
 }
 
 
@@ -1439,7 +1602,7 @@ function copySelectedWideFieldResults() {
     ids.push(el.parentElement.parentElement.dataset.id)
   })
 
-  navigator.clipboard.writeText(ids).then(() => {
+  navigator.clipboard.writeText(ids.join('\r\n')).then(() => {
     Dock.dialog({
       id: 'kk-find-common-copy-results-direct',
       html: 'The IDs have been copied to clipboard',
@@ -1454,6 +1617,10 @@ const getWideFieldResults = (type, source) => {
   getWideFieldResults.type = type
   getWideFieldResults.source = source
   getWideFieldResults.numberOfFinishedRequests = 0
+  getWideFieldResults.results = {
+    upstream: {},
+    downstream: {}
+  }
 
   const resultIds = document.getElementsByClassName('result-id');
   for (let i = 0; i < resultIds.length; i++) {
@@ -1477,23 +1644,6 @@ const getWideFieldResults = (type, source) => {
     return;
   }
   getWideFieldResults.numberOfCells = ids.length
-
-  const requests = ids.map(id => getConnectivity(id));
-  Promise.all(requests)
-    .then(() => {
-      const wrapperWrapper = document.getElementById('kk-find-common-results-wrapper-wrapper')
-      if (wrapperWrapper) {
-        wrapperWrapper.style.display = 'block'
-      }
-    })
-    .catch(error => {
-      console.error(error);
-    });
-}
-
-getWideFieldResults.results = {
-  upstream: {},
-  downstream: {}
 }
 
 
@@ -1559,31 +1709,58 @@ function prepareWideFieldResults(MAX_NUMBER_OF_RESULTS, results, numberOfSources
     position++
   })
 
-  if (QUICK_FIND && results) {
+  if ((QUICK_FIND || findImmediatePartners) && results) {
     const ids = Array.from(results).flatMap((el) => [...el[1].downstream])
-    console.log(ids.join('\r\n'))
+    ids.push(...Array.from(results).flatMap((el) => [...el[1].upstream]))
+    Dock.dialog({
+      id: 'kk-find-common-quick-find-dialog',
+      html: `Found ${ids.length} IDs`,
+      okCallback: () => {
+        navigator.clipboard.writeText(ids.join('\r\n')).then(() => {
+          Dock.dialog({
+            id: 'kk-find-common-quick-find-copied-dialog',
+            html: 'IDs copied to clipboard',
+            okLabel: 'OK',
+            okCallback: () => {},
+            destroyAfterClosing: true
+          }).show()
+        })
+      },
+      okLabel: 'Copy',
+      cancelCallback: () => {},
+      cancelLabel: 'Cancel',
+      destroyAfterClosing: true
+    }).show()
   }
+  else {
+    const countOccurences = (data) => {
+      return Object.entries(data).map(([id, state]) => {
+        const sum = state.reduce((sum, value) => sum + value, 0)
+        return { id, sum }
+      }).sort((a, b) => b.sum - a.sum)
+    }
 
-  const countOccurences = (data) => {
-    return Object.entries(data).map(([id, state]) => {
-      const sum = state.reduce((sum, value) => sum + value, 0)
-      return { id, sum }
-    }).sort((a, b) => b.sum - a.sum)
+    const numberOfOccurencesUpstream = countOccurences(upstream)
+    const numberOfOccurencesDownstream = countOccurences(downstream)
+
+    const tableUpstream = document.getElementById('kk-find-common-upstream-summary')
+    const tableDownstream = document.getElementById('kk-find-common-downstream-summary')
+    tableUpstream.innerHTML = generateWideFieldResultsHtml(numberOfOccurencesUpstream, upstream, 'up')
+    tableDownstream.innerHTML = generateWideFieldResultsHtml(numberOfOccurencesDownstream, downstream, 'down')
   }
-
-  const numberOfOccurencesUpstream = countOccurences(upstream)
-  const numberOfOccurencesDownstream = countOccurences(downstream)
-
-  const tableUpstream = document.getElementById('kk-find-common-upstream-summary')
-  const tableDownstream = document.getElementById('kk-find-common-downstream-summary')
-  tableUpstream.innerHTML = generateWideFieldResultsHtml(numberOfOccurencesUpstream, upstream, 'up')
-  tableDownstream.innerHTML = generateWideFieldResultsHtml(numberOfOccurencesDownstream, downstream, 'down')
 }
 
 
 
 function generateWideFieldResultsHtml(occurences, sources, streamDirection) {
   let html = '';
+
+  // the switched directions isn't an error - it's source vs destination
+  const storedDirection = streamDirection === 'up' ? 'up-downstream' : 'down-upstream'
+  let storedIds = localStorage.getItem('stored-ids-' + storedDirection)
+  if (storedIds) {
+    storedIds = storedIds.split(',')
+  }
 
   for (let i = 0; i < MAX_NUMBER_OF_RESULTS; i++) {
     const id = occurences[i].id;
@@ -1594,11 +1771,17 @@ function generateWideFieldResultsHtml(occurences, sources, streamDirection) {
       sourcesHtml += `<td class="result-color" style="background-color: ${bgColor}"></td>`;
     });
 
+
+    let disabled = ''
+    if (storedIds && storedIds.length) {
+      disabled = storedIds.includes(id) ? 'disabled' : ''
+    }
+
     const resultId = `result-id-${id}-${streamDirection}`;
     html += `
       <tr>
         <td id="${resultId}" class="result-id ${streamDirection}" data-id="${id}">
-          <label><input type="checkbox">${id}</label>
+          <label><input type="checkbox" ${disabled}>${id}</label>
         </td>
         ${sourcesHtml}
       </tr>`;
@@ -1629,11 +1812,19 @@ function getPartnersOfPartners(results, type, source) {
   let tableToAnalyze = [];
   let numberOfTables = 0;
 
+  const ids = []
+
   if (source === 'upstream' || source === 'both') {
     Object.values(results.upstream).forEach(partners => {
       tableToAnalyze.push(...partners);
       numberOfTables++;
     });
+
+    for (const [key, value] of Object.entries(results.upstream)) {
+      if (value.length) {
+        ids.push(key)
+      }
+    }
   }
   
   if (source === 'downstream' || source === 'both') {
@@ -1644,6 +1835,12 @@ function getPartnersOfPartners(results, type, source) {
         numberOfTables++;
       }
     });
+
+    for (const [key, value] of Object.entries(results.downstream)) {
+      if (value.length) {
+        ids.push(key)
+      }
+    }
   }
 
   if (type === 'common') {
@@ -1657,7 +1854,8 @@ function getPartnersOfPartners(results, type, source) {
         partnersResults.push(id);
       }
     });
-  } else {
+  }
+  else {
     partnersResults = [...new Set(tableToAnalyze)];
   }
 
@@ -1665,7 +1863,11 @@ function getPartnersOfPartners(results, type, source) {
 
   const dialogContent = `Found ${partnersResults.length} result(s)<br />Click the "Copy" button to copy the results to clipboard`;
   const okCallback = () => {
-    navigator.clipboard.writeText(partnersResults).then(() => {
+    if (DEV) {
+      markChecked_DEV(source, ids)
+    }
+
+    navigator.clipboard.writeText(partnersResults.join('\r\n')).then(() => {
       Dock.dialog({
         id: 'kk-copy-common-copied-confirm',
         html: 'IDs have been copied to clipboard',
@@ -1683,6 +1885,51 @@ function getPartnersOfPartners(results, type, source) {
     cancelCallback: () => {},
     cancelLabel: 'Close'
   }).show();
+}
+
+
+function markChecked_DEV(source, ids) {
+  // downstream of upstream
+  if (source === 'downstream' || source === 'both') {
+    let storedIds = localStorage.getItem('stored-ids-up-downstream')
+    if (storedIds) {
+      storedIds = storedIds.split(',')
+      storedIds.push(...ids)
+    }
+    else {
+      storedIds = ids
+    }
+    localStorage.setItem('stored-ids-up-downstream', storedIds)
+
+    document.querySelectorAll('#kk-find-common-upstream-summary input[type="checkbox"]').forEach(checkbox => {
+      const id = checkbox.closest('td').dataset.id
+      if (storedIds.includes(id)) {
+        checkbox.checked = false
+        checkbox.disabled = true
+      }
+    })
+  }
+
+  // upstream of downstream
+  if (source === 'upstream' || source === 'both') {
+    let storedIds = localStorage.getItem('stored-ids-down-upstream')
+    if (storedIds) {
+      storedIds = storedIds.split(',')
+      storedIds.push(...ids)
+    }
+    else {
+      storedIds = ids
+    }
+    localStorage.setItem('stored-ids-down-upstream', storedIds)
+
+    document.querySelectorAll('#kk-find-common-downstream-summary input[type="checkbox"]').forEach(checkbox => {
+      const id = checkbox.closest('td').dataset.id
+      if (storedIds.includes(id)) {
+        checkbox.checked = false
+        checkbox.disabled = true
+      }
+    })
+  }
 }
 
 
@@ -1773,7 +2020,7 @@ function addButtonsEvents(segments) {
       selected.push(checkbox.parentElement?.parentElement?.dataset.segId)
     })
 
-    navigator.clipboard.writeText(selected)
+    navigator.clipboard.writeText(selected.join('\r\n'))
   })
 
   document.getElementById('neuropils-hide-selected')?.addEventListener('click', e => {
@@ -2098,7 +2345,9 @@ function addHeaderBar() {
       <button id="statuses-remove-incompleted">Remove incompleted</button>
       <button id="statuses-remove-outdated">Remove outdated</button>
     </div>
+    <button id="statuses-update-outdated">Update outdated</button>
     <hr />
+
   `
 }
 
@@ -2150,7 +2399,7 @@ function addStatusButtonsEvents() {
         selected.push(checkbox.closest('tr').dataset.segId)
       })
   
-      navigator.clipboard.writeText(selected.join(','))
+      navigator.clipboard.writeText(selected.join('\r\n'))
     })
   }
 
@@ -2165,8 +2414,8 @@ function addStatusButtonsEvents() {
     document.getElementById(buttonId).addEventListener('click', e => {
       const container = document.querySelector('.item-container')
   
-      document.querySelectorAll(selector).forEach(checkbox => {
-        const row = checkbox.closest('tr')
+      document.getElementById('statuses-and-labels-table').querySelectorAll(selector).forEach(cell => {
+        const row = cell.closest('tr')
         const id = row.dataset.segId
         row?.remove()
         container.querySelector(`.segment-button[data-seg-id="${id}"]`).click()
@@ -2213,7 +2462,8 @@ function fillStatuses(results) {
   Object.entries(results).forEach(entry => {
     const id = entry[0]
     const className = entry[1]
-    document.querySelector(`#status-for-${id} .statuses-status`)?.classList.add(className)
+    const statusCell = document.querySelector(`#status-for-${id} .statuses-status`)
+    statusCell.classList.add(className)
   })
 }
 
@@ -2297,6 +2547,8 @@ function getSynapticPartners(visible) {
   const id = visible[0].firstElementChild.dataset.segId
   if (!id) return console.warn('Batch Processor - no visible segments')
 
+  getSynapticPartners.id = id
+
   Dock.dialog({
     width: 1000,
     id: 'get-synaptic-partners-dialog',
@@ -2308,7 +2560,6 @@ function getSynapticPartners(visible) {
   }).show()
 
   getConnectivity(id, getSynapticPartners.onload, null, null)
-
 }
 
 getSynapticPartners.onload = (res) => {
@@ -2318,18 +2569,30 @@ getSynapticPartners.onload = (res) => {
 
   const incoming = getIdsFromData(data.incoming_table.data, 'Upstream Partner ID')
   const outgoing = getIdsFromData(data.outgoing_table.data, 'Downstream Partner ID')
+  const incomingSynapses = getSynapsesById(data.incoming_table.data, 'Upstream Partner ID')
+  const outgoingSynapses = getSynapsesById(data.outgoing_table.data, 'Downstream Partner ID')
+  console.log(incomingSynapses, outgoingSynapses)
 
-  getLabels(incoming, showPartners.bind(null, 'incoming'))
-  getLabels(outgoing, showPartners.bind(null, 'outgoing'))
+  getLabels(incoming, showPartners.bind(null, 'incoming', incomingSynapses))
+  getLabels(outgoing, showPartners.bind(null, 'outgoing', outgoingSynapses))
 }
 
+function getSynapsesById(data, rowLabel) {
+  const synapses = []
+  data.forEach(row => {
+    synapses[row[rowLabel].split(']')[0].substr(1)] = parseInt(row['Synapses'], 10)
+  })
+
+  return synapses
+}
 
 function getIdsFromData(data, rowLabel) {
   return data.map(row => row[rowLabel].split(']')[0].substr(1))
 }
 
 
-function showPartners(type, data) {
+
+function showPartners(type, synapses, data) {
   if (!data || !data.id.length) return
 
   const target = document.getElementById(`${type}-synaptic-partners-table`)
@@ -2338,36 +2601,24 @@ function showPartners(type, data) {
 
   for (let i = 0; i < data.id.length; i++) {
     const id = data.id[i]
-    const tag = data.tag[i]
+    let tag = data.tag[i]
+    const syn = synapses[id]
     const lTag = tag.toLowerCase()
 
     if (rows[lTag]) {
-      rows[lTag].count++
-      continue
+      rows[lTag].count += syn
     }
-
-    const existingRow = document.getElementById(`${type}-partners-row-for-${id}`)
-    if (existingRow) {
-      existingRow.querySelector('.synaptic-partners-tag').setAttribute('title', `${existingRow.getAttribute('data-seg-id')}, ${id}`)
-      rows[lTag] = { row: existingRow, count: 1 }
-      continue
+    else {
+      rows[lTag] = { tag: fixTag(tag), count: syn }
     }
-
-    const row = createRow(type, id, tag)
-    rows[lTag] = { row, count: 1 }
-    fragment.appendChild(row)
   }
 
-  const sortedRows = Object.values(rows)
-    .sort((a, b) => a.row.querySelector('.synaptic-partners-tag').textContent.localeCompare(b.row.querySelector('.synaptic-partners-tag').textContent))
+  const sortedRows = Object.entries(rows).sort((a, b) => b[1].count - a[1].count)
 
   let html = ''
   for (let i = 0; i < sortedRows.length; i++) {
-    const { row, count } = sortedRows[i]
-    const tag = row.querySelector('.synaptic-partners-tag').textContent
-    if (count > 1) {
-      row.querySelector('.synaptic-partners-tag').innerHTML = `${tag} <span class="synaptic-partners-multiplier">(x${count})</span>`
-    }
+    const { tag, count } = sortedRows[i][1]
+    const row = createRow(type, tag, count)
     fragment.appendChild(row)
   }
 
@@ -2375,18 +2626,43 @@ function showPartners(type, data) {
   target.appendChild(fragment)
 }
 
-function createRow(type, id, tag) {
+function createRow(type, tag, count) {
   const tr = document.createElement('tr')
-  tr.id = `${type}-partners-row-for-${id}`
-  tr.dataset.segId = id
 
   const td = document.createElement('td')
   td.classList.add('synaptic-partners-tag')
-  td.title = id
   td.textContent = tag
 
+  const counter = document.createElement('span')
+  counter.classList.add('synaptic-partners-synapse-count')
+  counter.textContent = `(${count})`
+
+  if (type === 'incoming') {
+    td.appendChild(counter)
+  }
+  else {
+    td.insertBefore(counter, td.firstChild)
+  }
   tr.appendChild(td)
+
   return tr
+}
+
+
+function fixTag(tag) {
+  if (tag === 'protocerebral bridge 1 glomerulus-fan-shaped body-ventral gall surround neuron; AMPG-E; EB.w-AMP.d-D_GAsurround; P-F-Gs; FBbt_00111457') {
+    return 'PFGs'
+  }
+
+  if (tag.includes('hDelta')) {
+    return tag.match(/hDelta([A-M])/)[0]
+  }
+
+  if (tag.includes('vDelta')) {
+    return tag.match(/vDelta([A-M])/)[0]
+  }
+
+  return tag
 }
 
 
@@ -2457,16 +2733,135 @@ getSynapticPartners.css = () => {
     overflow: hidden;
   }
 
-  .synaptic-partners-multiplier {
+  .synaptic-partners-synapse-count {
     color: #57a757;
     display: inline-block;
-    padding-left: 10px;
+    width: 50px;
   }
   `
 }
 
+function getPartnersOfCommon(startingIds, threshold = 4) {
+  console.log('Getting partners of primary IDs...')
+  const primaryPool = new RequestPool()
+  primaryPool.runAllRequests(startingIds.split(',').map(id => id.trim())).then(primaryFinished)
+
+  let finalResults
+
+  function getMostCommon(ids) {
+    // Step 1: Track frequency of IDs
+    const frequency = {};
+    console.log('counting...')
+    ids.forEach((id) => {
+      frequency[id] = (frequency[id] || 0) + 1;
+    });
+  
+    // Step 2: Get IDs with frequency greater than ${threshold}
+    const commonIDs = Object.keys(frequency).filter((id) => frequency[id] > threshold);
+  
+    // Step 3: Sort common IDs by frequency in descending order
+    console.log('sorting...')
+    const sortedIDs = commonIDs.sort((a, b) => frequency[b] - frequency[a]);
+  
+    // Step 4: Return sorted list of common IDs
+    return sortedIDs.splice(0, 250);
+  }
+  
+
+  let mostCommonDownstream // this one is outside the function, so it can be accessed by the upstreamFinished() function
+  let directPartners = []
+  function primaryFinished(results) {
+    const idListUpstream = [];
+    const idListDownstream = [];
+    const len = results.length
+    console.log('Primary - number of results: ', len)
+
+    results.forEach((data, i) => {
+      if (data === null) return
+      if (data.status === 'rejected') return
+      if (!data.value) return
+      
+      data = JSON.parse(data.value)
+      try {
+        console.log(`Merged an array to the results: ${i + 1}/${len}`)
+        idListUpstream.push(...getIdsFromData(data.response.incoming_table.data, 'Upstream Partner ID'));
+        idListDownstream.push(...getIdsFromData(data.response.outgoing_table.data, 'Downstream Partner ID'));
+      }
+      catch (error) {
+        console.warn('No partners')
+      }
+    });
+
+    // to get direct upstream and downstream partners
+    directPartners = Array.from(new Set([...idListDownstream, ...idListUpstream]))
+    // return console.log(directPartners.join(','))
+
+    const mostCommonUpstream = getMostCommon(idListUpstream);
+    mostCommonDownstream = getMostCommon(idListDownstream);
+
+    console.log('Getting downstream partners of the primary\'s upstream ones...')
+    const upstreamPool = new RequestPool()
+    upstreamPool.runAllRequests(mostCommonUpstream).then(upstreamFinished)
+  }
+
+
+  function upstreamFinished(results) {
+    const ids = []
+    const len = results.length
+
+    results.forEach((data, i) => {
+      if (data === null) return
+      if (data.status === 'rejected') return
+      if (!data.value) return
+      
+      data = JSON.parse(data.value)
+      try {
+        console.log(`Merged an array to the upstream list: ${i + 1}/${len}`)
+        ids.push(...getIdsFromData(data.response.outgoing_table.data, 'Downstream Partner ID'));
+      }
+      catch (error) {
+        console.warn('No partners')
+      }
+    })
+
+    finalResults = new Set(ids)
+    console.log('downstream of upstream', Array.from(ids).join('\r\n'))
+    
+    console.log('Getting upstream partners of the primary\'s downstream ones...')
+    const downstreamPool = new RequestPool()
+    downstreamPool.runAllRequests(mostCommonDownstream).then(downstreamFinished)
+  }
+
+  function downstreamFinished(results) {
+    const ids = []
+    const len = results.length
+
+    results.forEach((data, i) => {
+      if (data === null) return
+      if (data.status === 'rejected') return
+      if (!data.value) return
+      
+      data = JSON.parse(data.value)
+      try {
+        console.log(`Merged an array to the downstream list: ${i + 1}/${len}`)
+        ids.push(...getIdsFromData(data.response.incoming_table.data, 'Upstream Partner ID'));
+      }
+      catch (error) {
+        console.warn('No partners')
+      }
+    })
+
+    ids.forEach(id => {
+      finalResults.add(id)
+    })
+    
+    console.log('upstream of downstream', Array.from(ids).join('\r\n'))
+    console.log('All: ', Array.from(new Set([...Dock.arraySubtraction(Array.from(finalResults), startingIds), ...directPartners])).join('\r\n'))
+  }
+}
 
 function main() {
   addPickr()
   addActionsMenu()
+  Dock.getPartnersOfCommon = getPartnersOfCommon
 }
